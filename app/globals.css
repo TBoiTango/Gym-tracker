@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Force dark mode background on html/body so there's no white flash */
+html, body {
+  @apply bg-gray-950 text-gray-100;
+  min-height: 100dvh;
+}
+
+/* Large tap targets for gym use (phones with sweaty hands) */
+button, a {
+  min-height: 44px;
+}
