@@ -33,14 +33,29 @@ export default function SetupGymPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    // Insert gym (ignore conflict if name already exists — reuse it)
+    // Upsert gym by name (handles duplicate gym names gracefully)
     const { data: gym, error: gymError } = await supabase
       .from("gyms")
-      .insert({ name: gymName.trim() })
+      .upsert({ name: gymName.trim() }, { onConflict: "name", ignoreDuplicates: false })
       .select()
       .single();
 
-    if (gymError) { setError(gymError.message); setLoading(false); return; }
+    if (gymError) {
+      // Fallback: try to fetch existing gym with that name
+      const { data: existing } = await supabase
+        .from("gyms")
+        .select("id")
+        .eq("name", gymName.trim())
+        .single();
+      if (!existing) { setError(gymError.message); setLoading(false); return; }
+      // Use the existing gym id
+      const { error: linkError2 } = await supabase
+        .from("user_gyms")
+        .upsert({ user_id: session.user.id, gym_id: existing.id, equipment_list: Array.from(selected) });
+      if (linkError2) { setError(linkError2.message); setLoading(false); return; }
+      router.push("/setup/plan");
+      return;
+    }
 
     const { error: linkError } = await supabase
       .from("user_gyms")

@@ -30,28 +30,34 @@ export default function SetupPlanPage() {
       if (!session) { router.push("/login"); return; }
 
       if (!isRegenerate) {
-        const { data: plan } = await supabase
-          .from("workout_plans")
-          .select("id")
-          .eq("user_id", session.user.id)
-          .eq("is_active", true)
-          .maybeSingle();
+        // Fetch plan and profile together
+        const [planRes, profileRes] = await Promise.all([
+          supabase
+            .from("workout_plans")
+            .select("id")
+            .eq("user_id", session.user.id)
+            .eq("is_active", true)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("name, workout_style")
+            .eq("user_id", session.user.id)
+            .single(),
+        ]);
 
-        if (plan) {
-          router.replace("/dashboard");
-          return;
-        }
+        const plan = planRes.data;
+        const profile = profileRes.data;
 
-        // Also check workout_style — if already set to no_split/cardio_only, go to dashboard
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("workout_style")
-          .eq("user_id", session.user.id)
-          .single();
-
-        if (profile?.workout_style === "no_split" || profile?.workout_style === "cardio_only") {
-          router.replace("/dashboard");
-          return;
+        // Only skip to dashboard if setup is fully complete (profile name exists)
+        if (profile?.name) {
+          if (plan) {
+            router.replace("/dashboard");
+            return;
+          }
+          if (profile.workout_style === "no_split" || profile.workout_style === "cardio_only") {
+            router.replace("/dashboard");
+            return;
+          }
         }
       }
 
