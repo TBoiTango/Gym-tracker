@@ -1,8 +1,7 @@
-// Active workout session — the main logging UI.
-// Each exercise has +/- buttons for weight and reps, and a "Log Set" button.
+// Active workout session — loads exercises from the session row (generated on the fly).
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import type { PlanData, PlanDay } from "@/types";
+import type { Exercise, PlanDay } from "@/types";
 import ActiveSession from "@/components/workout/ActiveSession";
 
 interface Props {
@@ -14,10 +13,9 @@ export default async function ActiveSessionPage({ params }: Props) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login");
 
-  // Load the workout session
   const { data: workoutSession } = await supabase
     .from("workout_sessions")
-    .select("id, plan_day, completed_at, user_id")
+    .select("id, plan_day, completed_at, user_id, exercises_data")
     .eq("id", params.sessionId)
     .single();
 
@@ -29,24 +27,15 @@ export default async function ActiveSessionPage({ params }: Props) {
     redirect(`/workout/${params.sessionId}/summary`);
   }
 
-  // Load the active plan to get exercise details
-  const { data: plan } = await supabase
-    .from("workout_plans")
-    .select("plan_data")
-    .eq("user_id", session.user.id)
-    .eq("is_active", true)
-    .single();
+  // exercises_data is stored directly on the session row (set when workout was generated)
+  const exercises: Exercise[] = (workoutSession.exercises_data as Exercise[]) ?? [];
 
-  if (!plan) redirect("/dashboard");
+  const planDay: PlanDay = {
+    day_name: workoutSession.plan_day,
+    muscle_focus: "",
+    exercises,
+  };
 
-  const planData = plan.plan_data as PlanData;
-  const planDay: PlanDay | undefined = planData.days.find(
-    (d) => d.day_name === workoutSession.plan_day
-  );
-
-  if (!planDay) redirect("/dashboard");
-
-  // Load any logs already recorded in this session
   const { data: existingLogs } = await supabase
     .from("exercise_logs")
     .select("*")
