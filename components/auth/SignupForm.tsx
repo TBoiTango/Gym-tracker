@@ -38,8 +38,8 @@ export default function SignupForm() {
       });
     }
 
-    // After signup, go to setup wizard to complete the profile.
-    router.push("/setup");
+    // After signup, show the welcome/onboarding screen before setup.
+    router.push("/welcome");
     router.refresh();
   };
 
