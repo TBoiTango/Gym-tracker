@@ -8,7 +8,7 @@ export const maxDuration = 60; // seconds — overrides Vercel's default 10s lim
 // - Today's available time
 // - Whether to include cardio (with intensity + type) and/or core
 import { NextRequest, NextResponse } from "next/server";
-import { askClaude } from "@/lib/claude";
+import { askClaude, extractJSON } from "@/lib/claude";
 import type { PlanDay } from "@/types";
 
 export interface GenerateDayRequest {
@@ -97,7 +97,7 @@ Return exactly this JSON shape (a single day object):
 }`;
 
     const raw = await askClaude(prompt);
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = extractJSON(raw);
 
     let dayData: PlanDay;
     try {

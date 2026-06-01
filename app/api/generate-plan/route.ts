@@ -4,7 +4,7 @@ export const maxDuration = 60; // seconds — overrides Vercel's default 10s lim
 // Receives equipment, experience, goal, split type, duration, and cardio preference.
 // Sends a structured prompt to Claude and returns PlanData JSON.
 import { NextRequest, NextResponse } from "next/server";
-import { askClaude } from "@/lib/claude";
+import { askClaude, extractJSON } from "@/lib/claude";
 import type { GeneratePlanRequest, PlanData } from "@/types";
 
 interface ExtendedRequest extends GeneratePlanRequest {
@@ -80,9 +80,7 @@ Return this exact JSON shape:
 }`;
 
     const raw = await askClaude(prompt);
-
-    // Strip any accidental markdown fences before parsing
-    const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const cleaned = extractJSON(raw);
 
     let planData: PlanData;
     try {
