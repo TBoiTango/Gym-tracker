@@ -184,14 +184,19 @@ export default async function SessionSummaryPage({ params }: Props) {
             Cardio
           </p>
           <div className="space-y-2">
-            {cardioExercises.map((log) => (
-              <div key={log.id} className="flex justify-between text-sm">
-                <span className="font-medium">{log.exercise_name}</span>
-                <span className="text-gray-400">
-                  {(log.reps_per_set as number[])[0] ?? `${log.sets_completed} set`}
-                </span>
-              </div>
-            ))}
+            {cardioExercises.map((log) => {
+              const mins = (log.reps_per_set as number[])[0];
+              const intensityCode = (log.weight_per_set as number[])[0];
+              const intensityName = intensityCode === 1 ? "Easy" : intensityCode === 3 ? "Hard" : "Moderate";
+              return (
+                <div key={log.id} className="flex justify-between text-sm">
+                  <span className="font-medium">{log.exercise_name}</span>
+                  <span className="text-gray-400">
+                    {mins ? `${mins} min · ${intensityName}` : `${log.sets_completed} set`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
