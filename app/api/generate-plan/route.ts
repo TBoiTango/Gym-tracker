@@ -1,14 +1,26 @@
 // POST /api/generate-plan
-// Receives equipment, experience, goal, and split type.
+// Receives equipment, experience, goal, split type, duration, and cardio preference.
 // Sends a structured prompt to Claude and returns PlanData JSON.
 import { NextRequest, NextResponse } from "next/server";
 import { askClaude } from "@/lib/claude";
 import type { GeneratePlanRequest, PlanData } from "@/types";
 
+interface ExtendedRequest extends GeneratePlanRequest {
+  workout_duration?: number;
+  include_cardio?: boolean;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body: GeneratePlanRequest = await req.json();
-    const { equipment, experience_level, goal, split_type } = body;
+    const body: ExtendedRequest = await req.json();
+    const {
+      equipment,
+      experience_level,
+      goal,
+      split_type,
+      workout_duration = 60,
+      include_cardio = false,
+    } = body;
 
     if (!equipment?.length || !experience_level || !goal || !split_type) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
@@ -16,16 +28,29 @@ export async function POST(req: NextRequest) {
 
     const equipmentList = equipment.join(", ");
 
-    // The prompt is carefully structured to guarantee JSON output.
-    // To add a new split type in the future, just describe it here.
+    // Duration-specific instructions — shorter sessions use compound movements only
+    const durationGuidance = getDurationGuidance(workout_duration);
+
+    const cardioGuidance = include_cardio
+      ? `After the lifting exercises, add ONE cardio finisher exercise per day (e.g. "Treadmill Intervals", "Rowing Machine", "Jump Rope", "Battle Ropes", "Stationary Bike Sprints"). Set sets to 1, rep_range to the duration (e.g. "10 min"), rest_seconds to 0, and write a coaching note. Choose cardio that suits the day's muscle focus.`
+      : `Do NOT include any cardio exercises. Weights/resistance training only.`;
+
     const prompt = `You are an expert strength and conditioning coach. Generate a detailed workout plan for a user with the following profile:
 
 - Available equipment: ${equipmentList}
 - Experience level: ${experience_level}
 - Primary goal: ${goal}
 - Requested split: ${getSplitDescription(split_type)}
+- Workout duration: ${workout_duration} minutes per session
+- Cardio: ${include_cardio ? "Yes — include a cardio finisher at the end of each session" : "No cardio"}
 
-Rules:
+Duration rules (STRICTLY follow these based on the ${workout_duration}-minute session):
+${durationGuidance}
+
+Cardio rules:
+${cardioGuidance}
+
+General rules:
 1. Only include exercises that can be done with the listed equipment.
 2. Tailor rep ranges and rest times to the goal: strength (3-6 reps, 2-4 min rest), hypertrophy (8-15 reps, 60-90s rest), endurance (15-25 reps, 30-60s rest).
 3. Scale volume and intensity to the experience level.
@@ -72,6 +97,18 @@ Return this exact JSON shape:
   } catch (err) {
     console.error("generate-plan error:", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+  }
+}
+
+function getDurationGuidance(minutes: number): string {
+  if (minutes <= 30) {
+    return `- 30 minute session: Use ONLY big compound movements (squat, deadlift, bench, row, press, pull-up). Maximum 3-4 exercises per day. Keep rest periods short (60s). No isolation exercises (no curls, lateral raises, etc.). Every minute counts — choose movements that work multiple muscle groups.`;
+  } else if (minutes <= 45) {
+    return `- 45 minute session: Focus on 4-5 exercises. Lead with 2-3 compound movements, then add 1-2 isolation exercises if time allows. Keep rest periods moderate (60-90s).`;
+  } else if (minutes <= 60) {
+    return `- 60 minute session: Include 5-6 exercises. Mix compound and isolation movements. Standard rest periods as per the goal.`;
+  } else {
+    return `- 90 minute session: Full volume training with 6-8 exercises. Include compounds, isolation work, and accessories. Full rest periods. Can include warm-up sets and drop sets.`;
   }
 }
 

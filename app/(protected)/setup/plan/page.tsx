@@ -24,10 +24,10 @@ export default function SetupPlanPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    // Fetch profile
+    // Fetch profile (including new duration + cardio fields)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("experience_level, goal")
+      .select("experience_level, goal, workout_duration, include_cardio")
       .eq("user_id", session.user.id)
       .single();
 
@@ -56,6 +56,8 @@ export default function SetupPlanPage() {
         experience_level: profile.experience_level,
         goal: profile.goal,
         split_type: splitType,
+        workout_duration: profile.workout_duration ?? 60,
+        include_cardio: profile.include_cardio ?? false,
       }),
     });
 

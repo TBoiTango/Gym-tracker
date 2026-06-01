@@ -1,5 +1,4 @@
-// Setup wizard — step 1: Profile (name, goal, experience).
-// After saving, redirects to /setup/gym.
+// Setup wizard — step 1: Profile (name, goal, experience, workout duration, cardio preference).
 "use client";
 
 import { useState } from "react";
@@ -8,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { ExperienceLevel, Goal } from "@/types";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import Card from "@/components/ui/Card";
 
 type Option<T> = { value: T; label: string; description: string };
 
@@ -24,12 +22,21 @@ const LEVELS: Option<ExperienceLevel>[] = [
   { value: "advanced", label: "Advanced", description: "3+ years lifting" },
 ];
 
+const DURATIONS = [
+  { value: 30, label: "30 min", description: "Short session — compounds only, maximum efficiency" },
+  { value: 45, label: "45 min", description: "Medium session — compounds + a few isolation moves" },
+  { value: 60, label: "60 min", description: "Full session — well-rounded training" },
+  { value: 90, label: "90 min", description: "Long session — full volume with accessories" },
+];
+
 export default function SetupProfilePage() {
   const router = useRouter();
   const supabase = createClient();
   const [name, setName] = useState("");
   const [goal, setGoal] = useState<Goal>("hypertrophy");
   const [level, setLevel] = useState<ExperienceLevel>("beginner");
+  const [duration, setDuration] = useState(60);
+  const [includeCardio, setIncludeCardio] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,6 +55,8 @@ export default function SetupProfilePage() {
         name: name.trim(),
         goal,
         experience_level: level,
+        workout_duration: duration,
+        include_cardio: includeCardio,
       });
 
     if (error) { setError(error.message); setLoading(false); return; }
@@ -97,6 +106,59 @@ export default function SetupProfilePage() {
                 description={l.description}
               />
             ))}
+          </div>
+        </div>
+
+        {/* Workout duration */}
+        <div>
+          <p className="mb-3 text-sm font-medium text-gray-300">How long is your typical workout?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {DURATIONS.map((d) => (
+              <button
+                key={d.value}
+                type="button"
+                onClick={() => setDuration(d.value)}
+                className={`rounded-xl border p-4 text-left transition-colors ${
+                  duration === d.value
+                    ? "border-orange-500 bg-orange-500/10 text-white"
+                    : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+                }`}
+              >
+                <p className="font-semibold">{d.label}</p>
+                <p className="mt-0.5 text-xs opacity-70">{d.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cardio preference */}
+        <div>
+          <p className="mb-3 text-sm font-medium text-gray-300">Include cardio at the end of workouts?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setIncludeCardio(true)}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                includeCardio
+                  ? "border-orange-500 bg-orange-500/10 text-white"
+                  : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+              }`}
+            >
+              <p className="font-semibold">Yes please 🏃</p>
+              <p className="mt-0.5 text-xs opacity-70">Add a cardio finisher after lifting</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIncludeCardio(false)}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                !includeCardio
+                  ? "border-orange-500 bg-orange-500/10 text-white"
+                  : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+              }`}
+            >
+              <p className="font-semibold">No thanks 🏋️</p>
+              <p className="mt-0.5 text-xs opacity-70">Weights only, no cardio</p>
+            </button>
           </div>
         </div>
 
