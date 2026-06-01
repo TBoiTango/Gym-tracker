@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, PlanDay, ExerciseLog } from "@/types";
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import Button from "@/components/ui/Button";
+
+interface WarmupExercise {
+  name: string;
+  duration: string;
+  note: string;
+}
 
 interface Props {
   sessionId: string;
@@ -20,6 +26,25 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   const [exercises, setExercises] = useState<Exercise[]>(planDay.exercises);
   const [logs, setLogs] = useState<ExerciseLog[]>(existingLogs);
   const [finishing, setFinishing] = useState(false);
+
+  // Warmup
+  const [warmup, setWarmup] = useState<WarmupExercise[] | null>(null);
+  const [warmupLoading, setWarmupLoading] = useState(false);
+  const [showWarmup, setShowWarmup] = useState(planDay.day_name !== "Free Session" && existingLogs.length === 0);
+
+  useEffect(() => {
+    if (!showWarmup || planDay.day_name === "Free Session") return;
+    setWarmupLoading(true);
+    fetch("/api/generate-warmup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ muscle_focus: planDay.muscle_focus, day_name: planDay.day_name }),
+    })
+      .then((r) => r.json())
+      .then((d) => setWarmup(d.exercises ?? null))
+      .catch(() => setWarmup(null))
+      .finally(() => setWarmupLoading(false));
+  }, []);
 
   // Skip exercise state
   const [skipIndex, setSkipIndex] = useState<number | null>(null);
@@ -116,6 +141,59 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       .eq("id", sessionId);
     router.push(`/workout/${sessionId}/summary`);
   };
+
+  // Warmup screen
+  if (showWarmup) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold">Warmup 🔥</h1>
+          <p className="text-sm text-gray-400">{planDay.day_name} · ~5 minutes</p>
+        </div>
+
+        {warmupLoading && (
+          <div className="space-y-3">
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} className="h-20 rounded-xl bg-gray-800 animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {!warmupLoading && warmup && (
+          <div className="space-y-3 mb-8">
+            {warmup.map((ex, i) => (
+              <div key={i} className="rounded-xl border border-gray-700 bg-gray-900 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{ex.name}</p>
+                    <p className="text-sm text-orange-400 mt-0.5">{ex.duration}</p>
+                    <p className="text-xs text-gray-500 mt-1 italic">{ex.note}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-600 font-mono">{i + 1}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!warmupLoading && !warmup && (
+          <p className="text-sm text-gray-500 mb-8">Could not load warmup. You can skip it and go straight to the workout.</p>
+        )}
+
+        <div className="space-y-3">
+          <Button onClick={() => setShowWarmup(false)} className="w-full text-lg py-4">
+            Start Workout 💪
+          </Button>
+          <button
+            onClick={() => setShowWarmup(false)}
+            className="w-full text-sm text-gray-500 hover:text-gray-300 py-2 transition-colors"
+          >
+            Skip warmup
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-lg px-4 py-6">

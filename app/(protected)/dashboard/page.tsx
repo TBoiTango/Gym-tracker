@@ -86,18 +86,29 @@ export default async function DashboardPage() {
 
       {/* Today's workout CTA */}
       <Card className="border-orange-500/30 bg-orange-500/5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-400 mb-1">
-          Today
-        </p>
+        <div className="flex items-start justify-between mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">Today</p>
+          <Link href="/workout" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
+            Change day →
+          </Link>
+        </div>
         <p className="text-lg font-bold">{todayPlan.day_name}</p>
         <p className="text-sm text-gray-400 mt-0.5">{todayPlan.muscle_focus}</p>
         <p className="text-sm text-gray-500 mt-0.5">{todayPlan.exercises.length} exercises</p>
-        <Link
-          href={`/workout?day=${encodeURIComponent(todayPlan.day_name)}`}
-          className="mt-4 block w-full rounded-xl bg-orange-500 py-3 text-center font-semibold text-white hover:bg-orange-600 active:bg-orange-700 transition-colors"
-        >
-          Start Workout
-        </Link>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Link
+            href={`/workout?day=${encodeURIComponent(todayPlan.day_name)}`}
+            className="block rounded-xl bg-orange-500 py-3 text-center font-semibold text-white hover:bg-orange-600 active:bg-orange-700 transition-colors"
+          >
+            Start Workout
+          </Link>
+          <Link
+            href="/workout/free"
+            className="block rounded-xl border border-gray-600 py-3 text-center text-sm font-semibold text-gray-300 hover:border-gray-400 transition-colors"
+          >
+            Free Session
+          </Link>
+        </div>
       </Card>
 
       {/* Last session summary */}
