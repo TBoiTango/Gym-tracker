@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#f97316"/>
+  <!-- Dumbbell bar -->
+  <rect x="156" y="236" width="200" height="40" rx="8" fill="white"/>
+  <!-- Left weight outer -->
+  <rect x="100" y="196" width="68" height="120" rx="14" fill="white"/>
+  <!-- Left weight inner cutout -->
+  <rect x="118" y="218" width="32" height="76" rx="6" fill="#f97316"/>
+  <!-- Right weight outer -->
+  <rect x="344" y="196" width="68" height="120" rx="14" fill="white"/>
+  <!-- Right weight inner cutout -->
+  <rect x="362" y="218" width="32" height="76" rx="6" fill="#f97316"/>
+</svg>
