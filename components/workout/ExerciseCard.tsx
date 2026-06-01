@@ -29,6 +29,7 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
     existingLog?.reps_per_set.slice(-1)[0] ?? parseInt(exercise.rep_range.split("-")[0]) ?? 10
   );
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const setsLogged = existingLog?.sets_completed ?? 0;
   const targetSets = exercise.sets;
@@ -60,9 +61,10 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
 
   const logSet = async () => {
     setSaving(true);
+    setSaveError("");
 
     if (existingLog) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("exercise_logs")
         .update({
           sets_completed: setsLogged + 1,
@@ -72,9 +74,10 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
         .eq("id", existingLog.id)
         .select()
         .single();
-      if (data) onLogUpdated(data);
+      if (error) { setSaveError("Failed to save — check your connection."); }
+      else if (data) onLogUpdated(data);
     } else {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("exercise_logs")
         .insert({
           session_id: sessionId,
@@ -85,7 +88,8 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
         })
         .select()
         .single();
-      if (data) onLogUpdated(data);
+      if (error) { setSaveError("Failed to save — check your connection."); }
+      else if (data) onLogUpdated(data);
     }
 
     setSaving(false);
@@ -149,6 +153,7 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
             </div>
           </div>
 
+          {saveError && <p className="mb-2 text-xs text-red-400 text-center">{saveError}</p>}
           <button
             onClick={logSet}
             disabled={saving}
