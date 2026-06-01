@@ -52,7 +52,7 @@ export default async function DashboardPage() {
     (s) => s.completed_at && s.started_at >= oneWeekAgo
   ).length;
 
-  const planDays = (plan.plan_data as { days: { day_name: string }[] }).days;
+  const planDays = (plan.plan_data as { days: { day_name: string; muscle_focus: string; exercises: unknown[] }[] }).days;
   const weeklyTarget = Math.min(planDays.length, 7);
 
   // Determine today's planned workout day using a simple rotation
