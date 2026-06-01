@@ -11,6 +11,7 @@ interface Session {
   plan_day: string;
   started_at: string;
   completed_at?: string | null;
+  session_type?: string | null;
 }
 
 export default function HistoryList({ sessions: initial }: { sessions: Session[] }) {
@@ -47,20 +48,36 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
                   weekday: "short", day: "numeric", month: "short", year: "numeric",
                 })}
               </p>
-              <span className={`text-xs font-semibold ${s.completed_at ? "text-green-400" : "text-gray-500"}`}>
-                {s.completed_at ? "Completed" : "Incomplete"}
-              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={`text-xs font-semibold ${s.completed_at ? "text-green-400" : "text-gray-500"}`}>
+                  {s.completed_at ? "Completed" : "Incomplete"}
+                </span>
+                {s.session_type === "cardio" && (
+                  <span className="text-xs bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-semibold">Cardio</span>
+                )}
+                {s.plan_day === "Free Session" && s.session_type !== "cardio" && (
+                  <span className="text-xs bg-purple-500/20 text-purple-400 rounded px-1.5 py-0.5 font-semibold">Free</span>
+                )}
+              </div>
             </div>
 
             {/* Action buttons */}
             <div className="flex gap-2 shrink-0">
-              {/* Edit — go to the session edit page */}
-              <Link
-                href={`/workout/history/${s.id}/edit`}
-                className="rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-colors"
-              >
-                Edit
-              </Link>
+              {s.session_type === "cardio" ? (
+                <Link
+                  href={`/workout/cardio/${s.id}/summary`}
+                  className="rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-colors"
+                >
+                  View
+                </Link>
+              ) : (
+                <Link
+                  href={`/workout/history/${s.id}/edit`}
+                  className="rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-colors"
+                >
+                  Edit
+                </Link>
+              )}
 
               {/* Delete with confirm */}
               {confirmDelete === s.id ? (

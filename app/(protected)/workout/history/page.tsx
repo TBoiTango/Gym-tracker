@@ -14,7 +14,7 @@ export default async function HistoryPage() {
 
   const { data: sessions } = await supabase
     .from("workout_sessions")
-    .select("id, plan_day, started_at, completed_at")
+    .select("id, plan_day, started_at, completed_at, session_type")
     .eq("user_id", session.user.id)
     .order("started_at", { ascending: false })
     .limit(100);

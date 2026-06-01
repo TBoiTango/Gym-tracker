@@ -95,16 +95,22 @@ export default async function DashboardPage() {
         <p className="text-lg font-bold">{todayPlan.day_name}</p>
         <p className="text-sm text-gray-400 mt-0.5">{todayPlan.muscle_focus}</p>
         <p className="text-sm text-gray-500 mt-0.5">{todayPlan.exercises.length} exercises</p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="mt-4 grid grid-cols-3 gap-2">
           <Link
             href={`/workout?day=${encodeURIComponent(todayPlan.day_name)}`}
-            className="block rounded-xl bg-orange-500 py-3 text-center font-semibold text-white hover:bg-orange-600 active:bg-orange-700 transition-colors"
+            className="col-span-3 block rounded-xl bg-orange-500 py-3 text-center font-semibold text-white hover:bg-orange-600 active:bg-orange-700 transition-colors"
           >
             Start Workout
           </Link>
           <Link
+            href="/workout/cardio"
+            className="block rounded-xl border border-gray-600 py-2.5 text-center text-sm font-semibold text-gray-300 hover:border-orange-500 hover:text-orange-400 transition-colors"
+          >
+            🏃 Cardio
+          </Link>
+          <Link
             href="/workout/free"
-            className="block rounded-xl border border-gray-600 py-3 text-center text-sm font-semibold text-gray-300 hover:border-gray-400 transition-colors"
+            className="col-span-2 block rounded-xl border border-gray-600 py-2.5 text-center text-sm font-semibold text-gray-300 hover:border-gray-400 transition-colors"
           >
             Free Session
           </Link>
