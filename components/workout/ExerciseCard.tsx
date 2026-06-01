@@ -19,18 +19,26 @@ interface Props {
 
 const MAX_REST = 90;
 
-const CARDIO_KEYWORDS = [
-  "treadmill", "run", "running", "jog", "jogging", "bike", "cycling", "cycle",
-  "elliptical", "rowing", "row", "stair", "stairs", "jump rope", "skipping",
-  "cardio", "hiit", "swim", "swimming", "walk", "walking", "sprint",
+// Exact-word cardio keywords — only match when the word stands alone,
+// not as part of a compound exercise name like "Bent-Over Row".
+const CARDIO_EXACT = [
+  "treadmill", "running", "jogging", "cycling", "elliptical",
+  "rowing machine", "stair climber", "stairmaster", "jump rope",
+  "skipping", "cardio", "hiit", "swimming", "sprints", "sprint intervals",
+  "treadmill intervals", "treadmill run", "treadmill walk",
 ];
 
-const TREADMILL_KEYWORDS = ["treadmill", "run", "running", "jog", "jogging", "sprint", "walk", "walking"];
+// Whole-word matches (won't match "row" inside "barbell row")
+const CARDIO_WHOLE_WORD = ["run", "jog", "bike", "swim", "walk"];
 
 function isCardioExercise(name: string) {
   const lower = name.toLowerCase();
-  return CARDIO_KEYWORDS.some((k) => lower.includes(k));
+  if (CARDIO_EXACT.some((k) => lower.includes(k))) return true;
+  // Whole-word check: surrounded by start/end or non-letter characters
+  return CARDIO_WHOLE_WORD.some((k) => new RegExp(`(^|[^a-z])${k}([^a-z]|$)`).test(lower));
 }
+
+const TREADMILL_KEYWORDS = ["treadmill", "treadmill run", "treadmill walk", "treadmill intervals", "sprints", "sprint intervals"];
 
 function isTreadmillExercise(name: string) {
   const lower = name.toLowerCase();
