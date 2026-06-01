@@ -1,7 +1,7 @@
 "use client";
 
-// Cardio-only session logger.
-import { useState } from "react";
+// Cardio-only session logger with AI progressive overload suggestions.
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -56,10 +56,74 @@ export default function CardioSessionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // ── AI suggestion state ──────────────────────────────────────────────────
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  const [felt, setFelt] = useState<1 | 2 | 3>(2); // how last session felt — used for next suggestion
+
   // ── Shared ───────────────────────────────────────────────────────────────
   const [durationMins, setDurationMins] = useState(30);
   const [rounds, setRounds] = useState(4);
   const [notes, setNotes] = useState("");
+
+  // ── Fetch last session + AI suggestion when interval type selected ────────
+  useEffect(() => {
+    if (type !== "treadmill" && type !== "row" && type !== "stairs") return;
+    setSuggestion(null);
+    setSuggestionDismissed(false);
+
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const label = CARDIO_TYPES.find((c) => c.type === type)?.label ?? "";
+      const { data: lastSession } = await supabase
+        .from("workout_sessions")
+        .select("cardio_data")
+        .eq("user_id", session.user.id)
+        .eq("session_type", "cardio")
+        .ilike("plan_day", `%${label}%`)
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!lastSession?.cardio_data) return;
+
+      const cd = lastSession.cardio_data as Record<string, unknown>;
+      const lastIntervals = cd.intervals as unknown[];
+      const lastRounds = (cd.rounds as number) ?? 4;
+      const lastFelt = (cd.felt as number) ?? 2;
+
+      if (!lastIntervals?.length) return;
+
+      setSuggestionLoading(true);
+      try {
+        const res = await fetch("/api/suggest-cardio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardioType: type, lastIntervals, lastRounds, lastFelt }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Pre-fill intervals with AI suggestion
+        if (type === "treadmill" && data.intervals) {
+          setTmIntervals(data.intervals);
+          setRounds(data.rounds ?? lastRounds);
+        } else if (type === "row" && data.intervals) {
+          setRowIntervals(data.intervals);
+          setRounds(data.rounds ?? lastRounds);
+        } else if (type === "stairs" && data.intervals) {
+          setStairsIntervals(data.intervals);
+          setRounds(data.rounds ?? lastRounds);
+        }
+        if (data.suggestion) setSuggestion(data.suggestion);
+      } finally {
+        setSuggestionLoading(false);
+      }
+    })();
+  }, [type]);
 
   // ── Treadmill intervals ──────────────────────────────────────────────────
   const [tmIntervals, setTmIntervals] = useState<TreadmillInterval[]>(DEFAULT_TM_INTERVALS);
@@ -147,11 +211,11 @@ export default function CardioSessionPage() {
     let cardioData: Record<string, unknown> = { type, notes };
 
     if (type === "treadmill") {
-      cardioData = { ...cardioData, intervals: tmIntervals, rounds, total_seconds: tmTotal };
+      cardioData = { ...cardioData, intervals: tmIntervals, rounds, total_seconds: tmTotal, felt };
     } else if (type === "row") {
-      cardioData = { ...cardioData, intervals: rowIntervals, rounds, total_seconds: rowTotal };
+      cardioData = { ...cardioData, intervals: rowIntervals, rounds, total_seconds: rowTotal, felt };
     } else if (type === "stairs") {
-      cardioData = { ...cardioData, intervals: stairsIntervals, rounds, total_seconds: stairsTotal };
+      cardioData = { ...cardioData, intervals: stairsIntervals, rounds, total_seconds: stairsTotal, felt };
     } else if (type === "run") {
       cardioData = { ...cardioData, duration_minutes: durationMins, distance: parseFloat(runDistance) || 0, unit: runUnit, terrain: runTerrain };
     } else if (type === "bike") {
@@ -208,6 +272,35 @@ export default function CardioSessionPage() {
 
       {type && (
         <div className="space-y-5">
+
+          {/* ── AI Suggestion Banner ── */}
+          {(type === "treadmill" || type === "row" || type === "stairs") && (
+            <>
+              {suggestionLoading && (
+                <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 px-4 py-3 flex items-center gap-3">
+                  <span className="text-purple-400 animate-spin text-lg">⚙️</span>
+                  <p className="text-sm text-purple-300">Checking your last session…</p>
+                </div>
+              )}
+              {suggestion && !suggestionDismissed && (
+                <div className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex gap-2">
+                      <span className="text-lg mt-0.5">🤖</span>
+                      <div>
+                        <p className="text-xs font-semibold text-purple-300 mb-0.5">AI Progression Suggestion</p>
+                        <p className="text-sm text-gray-300">{suggestion}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSuggestionDismissed(true)}
+                      className="text-gray-500 hover:text-gray-300 text-lg shrink-0"
+                    >✕</button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           {/* ── Treadmill Intervals ── */}
           {type === "treadmill" && (
@@ -417,6 +510,32 @@ export default function CardioSessionPage() {
                 )}
               </Card>
             </>
+          )}
+
+          {/* How did it feel — only for interval types (used for next session's AI suggestion) */}
+          {(type === "treadmill" || type === "row" || type === "stairs") && (
+            <Card>
+              <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wider">How did it feel?</p>
+              <p className="text-xs text-gray-600 mb-3">Used to personalise your next session.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 1, label: "Easy",     color: "border-green-500 bg-green-500/10 text-green-400"  },
+                  { value: 2, label: "Moderate",  color: "border-yellow-500 bg-yellow-500/10 text-yellow-400" },
+                  { value: 3, label: "Hard",      color: "border-red-500 bg-red-500/10 text-red-400"       },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setFelt(opt.value as 1 | 2 | 3)}
+                    className={`rounded-xl border py-2.5 text-sm font-semibold transition-colors ${
+                      felt === opt.value ? opt.color : "border-gray-700 text-gray-400 hover:border-gray-500"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </Card>
           )}
 
           {/* Notes */}
