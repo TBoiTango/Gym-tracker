@@ -25,9 +25,16 @@ const CARDIO_KEYWORDS = [
   "cardio", "hiit", "swim", "swimming", "walk", "walking", "sprint",
 ];
 
+const TREADMILL_KEYWORDS = ["treadmill", "run", "running", "jog", "jogging", "sprint", "walk", "walking"];
+
 function isCardioExercise(name: string) {
   const lower = name.toLowerCase();
   return CARDIO_KEYWORDS.some((k) => lower.includes(k));
+}
+
+function isTreadmillExercise(name: string) {
+  const lower = name.toLowerCase();
+  return TREADMILL_KEYWORDS.some((k) => lower.includes(k));
 }
 
 const INTENSITIES = [
@@ -38,6 +45,189 @@ const INTENSITIES = [
 
 function intensityLabel(code: number) {
   return INTENSITIES.find((i) => i.value === code)?.label ?? "Moderate";
+}
+
+// ── Treadmill Interval Card ───────────────────────────────────────────────────
+interface Interval {
+  speedMph: number;
+  incline: number;
+  durationSec: number; // stored in seconds for precision
+}
+
+const DEFAULT_INTERVALS: Interval[] = [
+  { speedMph: 4.0, incline: 0, durationSec: 120 }, // 2 min walk
+  { speedMph: 6.5, incline: 0, durationSec: 60 },  // 1 min run
+];
+
+function formatSec(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return sec === 0 ? `${m} min` : `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated }: Props) {
+  const supabase = createClient();
+
+  // Decode stored intervals: reps_per_set = durations (sec), weight_per_set = speed*10+incline encoded
+  const decodeIntervals = (): Interval[] => {
+    if (!existingLog || existingLog.sets_completed === 0) return DEFAULT_INTERVALS;
+    return existingLog.reps_per_set.map((dur, i) => {
+      const encoded = existingLog.weight_per_set[i] ?? 65;
+      const speedMph = Math.floor(encoded) / 10;
+      const incline = encoded % 1 === 0 ? 0 : Math.round((encoded % 1) * 10);
+      return { durationSec: dur, speedMph, incline };
+    });
+  };
+
+  const [intervals, setIntervals] = useState<Interval[]>(decodeIntervals);
+  const [rounds, setRounds] = useState(4);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const done = (existingLog?.sets_completed ?? 0) >= 1;
+
+  const updateInterval = (i: number, field: keyof Interval, delta: number) => {
+    setIntervals((prev) => prev.map((iv, idx) => {
+      if (idx !== i) return iv;
+      let val = iv[field] + delta;
+      if (field === "speedMph") val = Math.max(0.5, Math.round(val * 10) / 10);
+      if (field === "incline") val = Math.max(0, Math.min(15, val));
+      if (field === "durationSec") val = Math.max(15, val);
+      return { ...iv, [field]: val };
+    }));
+  };
+
+  const addInterval = () => setIntervals((prev) => [...prev, { speedMph: 5.0, incline: 0, durationSec: 60 }]);
+  const removeInterval = (i: number) => setIntervals((prev) => prev.filter((_, idx) => idx !== i));
+
+  // Encode: speed stored as integer tenths (e.g. 6.5 → 65), incline added as decimal (6.5mph, 3% → 65.3)
+  const encodeSpeed = (iv: Interval) => iv.speedMph * 10 + iv.incline * 0.1;
+
+  const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
+
+  const logIntervals = async () => {
+    setSaving(true);
+    setSaveError("");
+    const durations = intervals.map((iv) => iv.durationSec);
+    const speeds = intervals.map((iv) => encodeSpeed(iv));
+    const payload = {
+      sets_completed: rounds,
+      reps_per_set: durations,
+      weight_per_set: speeds,
+    };
+    if (existingLog) {
+      const { data, error } = await supabase.from("exercise_logs").update(payload).eq("id", existingLog.id).select().single();
+      if (error) setSaveError("Failed to save.");
+      else if (data) onLogUpdated(data);
+    } else {
+      const { data, error } = await supabase.from("exercise_logs").insert({ session_id: sessionId, exercise_name: exercise.name, ...payload }).select().single();
+      if (error) setSaveError("Failed to save.");
+      else if (data) onLogUpdated(data);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Card className={done ? "border-green-700/40 bg-green-900/10" : "border-blue-700/30"}>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex-1 mr-2">
+          <p className="font-bold">{exercise.name}</p>
+          <p className="text-xs text-blue-400 mt-0.5">Treadmill Intervals</p>
+          {exercise.coaching_note && (
+            <p className="text-xs text-gray-500 italic mt-0.5">{exercise.coaching_note}</p>
+          )}
+        </div>
+        {done && <span className="shrink-0 text-sm font-mono font-semibold text-green-400">✓</span>}
+      </div>
+
+      {done && existingLog ? (
+        <div className="space-y-1">
+          {existingLog.reps_per_set.map((dur, i) => {
+            const encoded = existingLog.weight_per_set[i] ?? 0;
+            const speed = Math.floor(encoded) / 10;
+            const incline = Math.round((encoded % 1) * 10);
+            return (
+              <div key={i} className="flex justify-between text-xs text-green-300">
+                <span>Interval {i + 1}</span>
+                <span>{speed} mph{incline > 0 ? ` · ${incline}% incline` : ""} · {formatSec(dur)}</span>
+              </div>
+            );
+          })}
+          <p className="text-xs text-green-400 text-center mt-2 font-semibold">
+            {existingLog.sets_completed} rounds · {formatSec(totalTime)} total ✓
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Intervals */}
+          <div className="space-y-3 mb-4">
+            {intervals.map((iv, i) => (
+              <div key={i} className="rounded-xl border border-gray-700 bg-gray-900 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-400">Interval {i + 1}</p>
+                  {intervals.length > 1 && (
+                    <button onClick={() => removeInterval(i)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {/* Speed */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Speed (mph)</p>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateInterval(i, "speedMph", -0.5)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <span className="flex-1 text-sm font-bold tabular-nums">{iv.speedMph.toFixed(1)}</span>
+                      <button onClick={() => updateInterval(i, "speedMph", 0.5)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                    </div>
+                  </div>
+                  {/* Incline */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Incline (%)</p>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateInterval(i, "incline", -1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <span className="flex-1 text-sm font-bold tabular-nums">{iv.incline}%</span>
+                      <button onClick={() => updateInterval(i, "incline", 1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                    </div>
+                  </div>
+                  {/* Duration */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Duration</p>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateInterval(i, "durationSec", -15)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <span className="flex-1 text-xs font-bold tabular-nums">{formatSec(iv.durationSec)}</span>
+                      <button onClick={() => updateInterval(i, "durationSec", 15)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={addInterval} className="w-full mb-3 rounded-xl border border-dashed border-gray-600 py-2 text-xs text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-colors">
+            + Add interval
+          </button>
+
+          {/* Rounds */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-400">Rounds</p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setRounds((r) => Math.max(1, r - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+              <span className="text-lg font-bold w-6 text-center">{rounds}</span>
+              <button onClick={() => setRounds((r) => r + 1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 text-center mb-3">
+            Total: {formatSec(totalTime)} · {intervals.length} intervals × {rounds} rounds
+          </p>
+
+          {saveError && <p className="mb-2 text-xs text-red-400 text-center">{saveError}</p>}
+
+          <button onClick={logIntervals} disabled={saving} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 transition-colors">
+            {saving ? "Saving…" : "Log Intervals ✓"}
+          </button>
+        </>
+      )}
+    </Card>
+  );
 }
 
 // ── Cardio Exercise Card ──────────────────────────────────────────────────────
@@ -154,7 +344,10 @@ function CardioExerciseCard({ exercise, sessionId, existingLog, onLogUpdated }: 
 export default function ExerciseCard(props: Props) {
   const { exercise, sessionId, existingLog, onLogUpdated, onAddSet } = props;
 
-  // Delegate to cardio card if the exercise name matches cardio keywords
+  // Delegate to treadmill interval card or generic cardio card
+  if (isTreadmillExercise(exercise.name)) {
+    return <TreadmillIntervalCard {...props} />;
+  }
   if (isCardioExercise(exercise.name)) {
     return <CardioExerciseCard {...props} />;
   }

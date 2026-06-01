@@ -58,6 +58,8 @@ General rules:
 3. Scale volume and intensity to the experience level.
 4. Write coaching notes that are practical and motivating — one sentence each.
 5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
+6. NEVER repeat the same exercise on more than one training day. Every day must have a completely unique set of exercises — no overlap whatsoever across days.
+7. For cardio finishers, choose a DIFFERENT cardio exercise for each day — do not use the same cardio exercise on multiple days. Rotate through options like Treadmill Intervals, Rowing Machine, Stationary Bike Sprints, Jump Rope, Battle Ropes, Stair Climber, Elliptical Intervals.
 
 Return this exact JSON shape:
 {
