@@ -15,12 +15,13 @@ interface Props {
   sessionId: string;
   existingLog?: ExerciseLog;
   onLogUpdated: (log: ExerciseLog) => void;
+  onAddSet?: () => void;
 }
 
 // Cap rest at 90 seconds regardless of what Claude suggests
 const MAX_REST = 90;
 
-export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUpdated }: Props) {
+export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUpdated, onAddSet }: Props) {
   const supabase = createClient();
 
   const [weight, setWeight] = useState(existingLog?.weight_per_set.slice(-1)[0] ?? 45);
@@ -182,9 +183,17 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
       )}
 
       {done && (
-        <p className="text-center text-sm text-green-400 font-semibold py-1">
-          All sets complete ✓
-        </p>
+        <div className="text-center py-1 space-y-2">
+          <p className="text-sm text-green-400 font-semibold">All sets complete ✓</p>
+          {onAddSet && (
+            <button
+              onClick={onAddSet}
+              className="text-xs text-orange-400 hover:text-orange-300 underline underline-offset-2 transition-colors"
+            >
+              + Add another set
+            </button>
+          )}
+        </div>
       )}
     </Card>
   );
