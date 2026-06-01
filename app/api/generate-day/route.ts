@@ -4,7 +4,7 @@
 // - Equipment available
 // - Experience level + goal
 // - Today's available time
-// - Whether to include cardio and/or core
+// - Whether to include cardio (with intensity + type) and/or core
 import { NextRequest, NextResponse } from "next/server";
 import { askClaude } from "@/lib/claude";
 import type { PlanDay } from "@/types";
@@ -17,6 +17,8 @@ export interface GenerateDayRequest {
   goal: string;
   duration_minutes: number;
   include_cardio: boolean;
+  cardio_intensity?: "easy" | "moderate" | "hard";
+  cardio_type?: string;
   include_core: boolean;
 }
 
@@ -31,6 +33,8 @@ export async function POST(req: NextRequest) {
       goal,
       duration_minutes,
       include_cardio,
+      cardio_intensity = "moderate",
+      cardio_type = "Any / AI Pick",
       include_core,
     } = body;
 
@@ -38,7 +42,12 @@ export async function POST(req: NextRequest) {
     const durationGuidance = getDurationGuidance(duration_minutes);
 
     const cardioSection = include_cardio
-      ? `After the main lifting exercises, add ONE cardio finisher (e.g. "Treadmill Intervals", "Rowing Machine", "Jump Rope", "Battle Ropes", "Stationary Bike Sprints"). Set sets to 1, rep_range to a duration like "8 min", rest_seconds to 0.`
+      ? `After the main lifting exercises, add ONE cardio finisher using this spec:
+  - Equipment/type: ${cardio_type === "Any / AI Pick" ? "your choice — pick the best option available" : cardio_type}
+  - Intensity: ${cardio_intensity}
+  - ${getCardioGuidance(cardio_type, cardio_intensity)}
+  - Set sets to 1, rest_seconds to 0.
+  - For rep_range, use a specific descriptive string, e.g. "20 min @ 3 mph 10% incline" or "8 × 30s sprints / 30s walk".`
       : `No cardio — weights only.`;
 
     const coreSection = include_core
@@ -52,11 +61,11 @@ Today's session details:
 - Available equipment: ${equipmentList}
 - Experience level: ${experience_level}
 - Goal: ${goal}
-- Time available: ${duration_minutes} minutes
-- Cardio finisher: ${include_cardio ? "Yes" : "No"}
+- Time available for lifting: ${duration_minutes} minutes
+- Cardio finisher: ${include_cardio ? `Yes (${cardio_intensity} intensity, ${cardio_type})` : "No"}
 - Core work: ${include_core ? "Yes" : "No"}
 
-Duration rules (STRICTLY follow for a ${duration_minutes}-minute session):
+Duration rules (STRICTLY follow for a ${duration_minutes}-minute lifting session):
 ${durationGuidance}
 
 Cardio rules: ${cardioSection}
@@ -116,4 +125,55 @@ function getDurationGuidance(minutes: number): string {
   } else {
     return `90 minutes: 6-8 exercises. Full volume — compounds, isolation, and accessories. Full rest periods. Can include warm-up variations.`;
   }
+}
+
+function getCardioGuidance(type: string, intensity: "easy" | "moderate" | "hard"): string {
+  const guides: Record<string, Record<string, string>> = {
+    "Treadmill": {
+      easy:     "20-25 min @ 3.0-3.5 mph, 8-10% incline (incline walk)",
+      moderate: "20 min alternating 2 min @ 4 mph / 1 min @ 6.5 mph",
+      hard:     "10 × 30s sprints @ 9-10 mph with 30s walk recovery",
+    },
+    "Rowing Machine": {
+      easy:     "20 min steady state @ comfortable pace (~22 spm)",
+      moderate: "5 × 3 min hard efforts / 1 min easy, target <2:10/500m",
+      hard:     "8 × 250m max effort with 60s rest between",
+    },
+    "Stair Stepper": {
+      easy:     "20 min @ low resistance, steady pace",
+      moderate: "15 min @ moderate pace, increase resistance every 5 min",
+      hard:     "10 × 1 min max effort / 30s easy, high resistance",
+    },
+    "Stationary Bike": {
+      easy:     "25 min @ easy pace, low resistance (Zone 2)",
+      moderate: "20 min — 5 min warm up, 4 × 2 min hard / 2 min easy, 5 min cool down",
+      hard:     "10 × 20s all-out sprint / 40s easy (Tabata-style)",
+    },
+    "Jump Rope": {
+      easy:     "3 × 3 min continuous jumping with 1 min rest",
+      moderate: "5 × 2 min with 30s rest — mix in double-unders",
+      hard:     "10 × 1 min max speed with 20s rest",
+    },
+    "Elliptical": {
+      easy:     "25 min steady state, moderate resistance",
+      moderate: "20 min — increase resistance every 5 min",
+      hard:     "8 × 1 min high resistance sprint / 1 min easy",
+    },
+    "Battle Ropes": {
+      easy:     "5 × 30s waves with 60s rest",
+      moderate: "8 × 30s alternating waves / 30s rest",
+      hard:     "10 × 20s max effort / 40s rest — mix wave and slam patterns",
+    },
+  };
+
+  const typeGuide = guides[type] ?? null;
+  if (typeGuide) return typeGuide[intensity];
+
+  // Fallback for "Any / AI Pick"
+  const fallback: Record<string, string> = {
+    easy:     "choose a low-intensity steady-state option, 20-25 min",
+    moderate: "choose a moderate interval-based option, ~20 min",
+    hard:     "choose a high-intensity interval option, ~15 min",
+  };
+  return fallback[intensity];
 }

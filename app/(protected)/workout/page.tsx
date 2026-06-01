@@ -26,6 +26,8 @@ export default function WorkoutPage() {
   const [selectedDay, setSelectedDay] = useState<PlanDay | null>(null);
   const [duration, setDuration] = useState(60);
   const [includeCardio, setIncludeCardio] = useState(false);
+  const [cardioIntensity, setCardioIntensity] = useState<"easy" | "moderate" | "hard">("moderate");
+  const [cardioType, setCardioType] = useState("Treadmill");
   const [includeCore, setIncludeCore] = useState(false);
   const [generatedDay, setGeneratedDay] = useState<PlanDay | null>(null);
   const [error, setError] = useState("");
@@ -98,6 +100,8 @@ export default function WorkoutPage() {
         goal: profile?.goal ?? "hypertrophy",
         duration_minutes: duration,
         include_cardio: includeCardio,
+        cardio_intensity: cardioIntensity,
+        cardio_type: cardioType,
         include_core: includeCore,
       }),
     });
@@ -229,7 +233,7 @@ export default function WorkoutPage() {
             {/* Cardio */}
             <div>
               <p className="text-sm font-medium text-gray-300 mb-3">🏃 Add cardio finisher?</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 mb-3">
                 {[{ val: true, label: "Yes", note: "Cardio at the end" }, { val: false, label: "No", note: "Weights only" }].map((opt) => (
                   <button
                     key={String(opt.val)}
@@ -246,6 +250,67 @@ export default function WorkoutPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Cardio sub-options — only show when cardio is on */}
+              {includeCardio && (
+                <div className="rounded-xl border border-gray-700 bg-gray-900/50 p-4 space-y-4">
+                  {/* Intensity */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider">Intensity</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { val: "easy" as const,     label: "Easy",     note: "Low & steady" },
+                        { val: "moderate" as const, label: "Moderate", note: "Challenging"   },
+                        { val: "hard" as const,     label: "Hard",     note: "All out 🔥"   },
+                      ]).map((opt) => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => setCardioIntensity(opt.val)}
+                          className={`rounded-xl border p-3 text-center transition-colors ${
+                            cardioIntensity === opt.val
+                              ? "border-orange-500 bg-orange-500/10 text-white"
+                              : "border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500"
+                          }`}
+                        >
+                          <p className="font-semibold text-sm">{opt.label}</p>
+                          <p className="text-xs opacity-60 mt-0.5">{opt.note}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Cardio type */}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wider">Type</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { val: "Treadmill",      emoji: "🏃" },
+                        { val: "Rowing Machine", emoji: "🚣" },
+                        { val: "Stair Stepper",  emoji: "🪜" },
+                        { val: "Stationary Bike",emoji: "🚴" },
+                        { val: "Jump Rope",      emoji: "⚡" },
+                        { val: "Elliptical",     emoji: "🔄" },
+                        { val: "Battle Ropes",   emoji: "💪" },
+                        { val: "Any / AI Pick",  emoji: "🤖" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => setCardioType(opt.val)}
+                          className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                            cardioType === opt.val
+                              ? "border-orange-500 bg-orange-500/10 text-white"
+                              : "border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500"
+                          }`}
+                        >
+                          {opt.emoji} {opt.val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Core */}
