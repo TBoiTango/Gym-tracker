@@ -515,8 +515,8 @@ export default function CardioSessionPage() {
           {/* How did it feel — only for interval types (used for next session's AI suggestion) */}
           {(type === "treadmill" || type === "row" || type === "stairs") && (
             <Card>
-              <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wider">How did it feel?</p>
-              <p className="text-xs text-gray-600 mb-3">Used to personalise your next session.</p>
+              <p className="text-xs text-gray-500 mb-1 font-medium uppercase tracking-wider">How did it feel?</p>
+              <p className="text-xs text-gray-600 mb-3">Your rating adjusts the default intervals for your next {type} session — Easy means we push harder, Hard means we ease off.</p>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { value: 1, label: "Easy",     color: "border-green-500 bg-green-500/10 text-green-400"  },

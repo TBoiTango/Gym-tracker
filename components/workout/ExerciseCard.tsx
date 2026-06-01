@@ -311,7 +311,8 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
 
           {/* How did it feel */}
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-2">How does it feel? <span className="text-gray-600">(used next session)</span></p>
+            <p className="text-xs text-gray-500 mb-1">How does it feel?</p>
+            <p className="text-xs text-gray-600 mb-2">Your rating adjusts the default speed and incline for your next treadmill session.</p>
             <div className="grid grid-cols-3 gap-1">
               {INTENSITIES.map((opt) => (
                 <button key={opt.value} type="button" onClick={() => setFelt(opt.value as 1 | 2 | 3)}
