@@ -1,4 +1,4 @@
-// Today's workout page — step 1: ask duration/cardio/core, step 2: generate + show workout.
+// Workout start page — pick your day, set duration/cardio/core, then generate.
 "use client";
 
 import { useState, useEffect } from "react";
@@ -21,17 +21,15 @@ export default function WorkoutPage() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const [step, setStep] = useState<"options" | "generating" | "preview">("options");
+  const [step, setStep] = useState<"pick-day" | "options" | "generating" | "preview">("pick-day");
+  const [allDays, setAllDays] = useState<PlanDay[]>([]);
+  const [selectedDay, setSelectedDay] = useState<PlanDay | null>(null);
   const [duration, setDuration] = useState(60);
   const [includeCardio, setIncludeCardio] = useState(false);
   const [includeCore, setIncludeCore] = useState(false);
   const [generatedDay, setGeneratedDay] = useState<PlanDay | null>(null);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState(false);
-
-  // The day name comes from the dashboard link e.g. ?day=Push+Day+A
-  const [dayName, setDayName] = useState<string>("");
-  const [muscleFocus, setMuscleFocus] = useState<string>("");
   const [equipment, setEquipment] = useState<string[]>([]);
   const [profile, setProfile] = useState<{ experience_level: string; goal: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,26 +39,37 @@ export default function WorkoutPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.push("/login"); return; }
 
-      // Load plan to get the day's muscle focus
-      const [planRes, gymRes, profileRes] = await Promise.all([
+      const [planRes, gymRes, profileRes, sessionsRes] = await Promise.all([
         supabase.from("workout_plans").select("plan_data").eq("user_id", session.user.id).eq("is_active", true).single(),
         supabase.from("user_gyms").select("equipment_list").eq("user_id", session.user.id).order("created_at", { ascending: false }).limit(1).single(),
         supabase.from("profiles").select("experience_level, goal, workout_duration, include_cardio").eq("user_id", session.user.id).single(),
+        supabase.from("workout_sessions").select("plan_day").eq("user_id", session.user.id).not("completed_at", "is", null).order("started_at", { ascending: false }),
       ]);
 
       const planData = planRes.data?.plan_data as PlanData | undefined;
-      const dayParam = searchParams.get("day");
-      const planDay = planData?.days.find((d) => d.day_name === dayParam) ?? planData?.days[0];
-
-      setDayName(planDay?.day_name ?? "");
-      setMuscleFocus(planDay?.muscle_focus ?? "");
+      const days = planData?.days ?? [];
+      setAllDays(days);
       setEquipment(gymRes.data?.equipment_list ?? []);
-      setProfile(profileRes.data ? { experience_level: profileRes.data.experience_level, goal: profileRes.data.goal } : null);
 
-      // Pre-fill with their saved preferences
       if (profileRes.data) {
+        setProfile({ experience_level: profileRes.data.experience_level, goal: profileRes.data.goal });
         setDuration(profileRes.data.workout_duration ?? 60);
         setIncludeCardio(profileRes.data.include_cardio ?? false);
+      }
+
+      // Work out which day is "next" based on completed sessions
+      const dayParam = searchParams.get("day");
+      if (dayParam && days.length) {
+        const found = days.find((d) => d.day_name === dayParam);
+        if (found) {
+          setSelectedDay(found);
+          setStep("options"); // Skip day picker if coming from dashboard CTA
+        }
+      } else if (days.length) {
+        // Default: next day in rotation
+        const completedCount = sessionsRes.data?.length ?? 0;
+        const nextIndex = completedCount % days.length;
+        setSelectedDay(days[nextIndex]);
       }
 
       setLoading(false);
@@ -68,7 +77,13 @@ export default function WorkoutPage() {
     load();
   }, []);
 
+  const confirmDay = (day: PlanDay) => {
+    setSelectedDay(day);
+    setStep("options");
+  };
+
   const generate = async () => {
+    if (!selectedDay) return;
     setStep("generating");
     setError("");
 
@@ -76,8 +91,8 @@ export default function WorkoutPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        day_name: dayName,
-        muscle_focus: muscleFocus,
+        day_name: selectedDay.day_name,
+        muscle_focus: selectedDay.muscle_focus,
         equipment,
         experience_level: profile?.experience_level ?? "beginner",
         goal: profile?.goal ?? "hypertrophy",
@@ -105,7 +120,6 @@ export default function WorkoutPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    // Save session with the generated exercises stored directly on the row
     const { data: workoutSession, error } = await supabase
       .from("workout_sessions")
       .insert({
@@ -139,120 +153,143 @@ export default function WorkoutPage() {
         ← Dashboard
       </Link>
 
-      {/* Day header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{dayName}</h1>
-        <p className="text-sm text-gray-400 mt-1">{muscleFocus}</p>
-      </div>
-
-      {/* Step 1: Options */}
-      {(step === "options" || step === "generating") && (
-        <div className="space-y-6">
-
-          {/* Duration */}
-          <div>
-            <p className="text-sm font-medium text-gray-300 mb-3">⏱ How long do you have today?</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DURATIONS.map((d) => (
-                <button
-                  key={d.value}
-                  type="button"
-                  onClick={() => setDuration(d.value)}
-                  className={`rounded-xl border p-4 text-left transition-colors ${
-                    duration === d.value
-                      ? "border-orange-500 bg-orange-500/10 text-white"
-                      : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
-                  }`}
-                >
-                  <p className="font-bold text-lg">{d.label}</p>
-                  <p className="text-xs opacity-60 mt-0.5">{d.note}</p>
-                </button>
-              ))}
-            </div>
+      {/* ── Step 1: Pick a day ─────────────────────────────────────────── */}
+      {step === "pick-day" && (
+        <>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold">What are you training today?</h1>
+            <p className="text-sm text-gray-400 mt-1">Pick any day from your plan — no need to follow the order.</p>
           </div>
 
-          {/* Cardio */}
-          <div>
-            <p className="text-sm font-medium text-gray-300 mb-3">🏃 Add cardio finisher?</p>
-            <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
+            {allDays.map((day, i) => (
               <button
+                key={i}
                 type="button"
-                onClick={() => setIncludeCardio(true)}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  includeCardio
+                onClick={() => confirmDay(day)}
+                className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                  selectedDay?.day_name === day.day_name
                     ? "border-orange-500 bg-orange-500/10 text-white"
                     : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
                 }`}
               >
-                <p className="font-semibold">Yes</p>
-                <p className="text-xs opacity-60 mt-0.5">Cardio at the end</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{day.day_name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{day.muscle_focus}</p>
+                  </div>
+                  <span className="text-xs text-gray-600 font-mono">Day {i + 1}</span>
+                </div>
               </button>
-              <button
-                type="button"
-                onClick={() => setIncludeCardio(false)}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  !includeCardio
-                    ? "border-orange-500 bg-orange-500/10 text-white"
-                    : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
-                }`}
-              >
-                <p className="font-semibold">No</p>
-                <p className="text-xs opacity-60 mt-0.5">Weights only</p>
-              </button>
-            </div>
+            ))}
           </div>
-
-          {/* Core */}
-          <div>
-            <p className="text-sm font-medium text-gray-300 mb-3">💪 Add core work?</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setIncludeCore(true)}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  includeCore
-                    ? "border-orange-500 bg-orange-500/10 text-white"
-                    : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
-                }`}
-              >
-                <p className="font-semibold">Yes</p>
-                <p className="text-xs opacity-60 mt-0.5">Ab work included</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIncludeCore(false)}
-                className={`rounded-xl border p-4 text-left transition-colors ${
-                  !includeCore
-                    ? "border-orange-500 bg-orange-500/10 text-white"
-                    : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
-                }`}
-              >
-                <p className="font-semibold">No</p>
-                <p className="text-xs opacity-60 mt-0.5">Skip core today</p>
-              </button>
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-red-400">{error}</p>}
-
-          <Button
-            onClick={generate}
-            loading={step === "generating"}
-            className="w-full text-lg py-4"
-          >
-            {step === "generating" ? "Building your workout…" : "Generate Today's Workout 🤖"}
-          </Button>
-        </div>
+        </>
       )}
 
-      {/* Step 2: Preview generated workout */}
+      {/* ── Step 2: Options ────────────────────────────────────────────── */}
+      {(step === "options" || step === "generating") && selectedDay && (
+        <>
+          {/* Selected day header + change button */}
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">{selectedDay.day_name}</h1>
+              <p className="text-sm text-gray-400 mt-1">{selectedDay.muscle_focus}</p>
+            </div>
+            <button
+              onClick={() => setStep("pick-day")}
+              className="text-sm text-orange-400 hover:underline shrink-0 mt-1"
+            >
+              Change day
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {/* Duration */}
+            <div>
+              <p className="text-sm font-medium text-gray-300 mb-3">⏱ How long do you have today?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {DURATIONS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => setDuration(d.value)}
+                    className={`rounded-xl border p-4 text-left transition-colors ${
+                      duration === d.value
+                        ? "border-orange-500 bg-orange-500/10 text-white"
+                        : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <p className="font-bold text-lg">{d.label}</p>
+                    <p className="text-xs opacity-60 mt-0.5">{d.note}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cardio */}
+            <div>
+              <p className="text-sm font-medium text-gray-300 mb-3">🏃 Add cardio finisher?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ val: true, label: "Yes", note: "Cardio at the end" }, { val: false, label: "No", note: "Weights only" }].map((opt) => (
+                  <button
+                    key={String(opt.val)}
+                    type="button"
+                    onClick={() => setIncludeCardio(opt.val)}
+                    className={`rounded-xl border p-4 text-left transition-colors ${
+                      includeCardio === opt.val
+                        ? "border-orange-500 bg-orange-500/10 text-white"
+                        : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <p className="font-semibold">{opt.label}</p>
+                    <p className="text-xs opacity-60 mt-0.5">{opt.note}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Core */}
+            <div>
+              <p className="text-sm font-medium text-gray-300 mb-3">💪 Add core work?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ val: true, label: "Yes", note: "Ab work included" }, { val: false, label: "No", note: "Skip core today" }].map((opt) => (
+                  <button
+                    key={String(opt.val)}
+                    type="button"
+                    onClick={() => setIncludeCore(opt.val)}
+                    className={`rounded-xl border p-4 text-left transition-colors ${
+                      includeCore === opt.val
+                        ? "border-orange-500 bg-orange-500/10 text-white"
+                        : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <p className="font-semibold">{opt.label}</p>
+                    <p className="text-xs opacity-60 mt-0.5">{opt.note}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {error && <p className="text-sm text-red-400">{error}</p>}
+
+            <Button onClick={generate} loading={step === "generating"} className="w-full text-lg py-4">
+              {step === "generating" ? "Building your workout…" : "Generate Today's Workout 🤖"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {/* ── Step 3: Preview ────────────────────────────────────────────── */}
       {step === "preview" && generatedDay && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-400">{generatedDay.exercises.length} exercises · {duration} min</p>
+        <>
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">{generatedDay.day_name}</h1>
+              <p className="text-sm text-gray-400 mt-1">{generatedDay.exercises.length} exercises · {duration} min</p>
+            </div>
             <button
               onClick={() => setStep("options")}
-              className="text-sm text-orange-400 hover:underline"
+              className="text-sm text-orange-400 hover:underline shrink-0 mt-1"
             >
               ← Change options
             </button>
@@ -278,7 +315,7 @@ export default function WorkoutPage() {
           <Button onClick={startWorkout} loading={starting} className="w-full text-lg py-4">
             Start Workout 💪
           </Button>
-        </div>
+        </>
       )}
     </main>
   );
