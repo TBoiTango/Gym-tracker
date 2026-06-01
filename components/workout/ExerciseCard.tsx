@@ -57,14 +57,15 @@ function intensityLabel(code: number) {
 
 // ── Treadmill Interval Card ───────────────────────────────────────────────────
 interface Interval {
+  label?: string;
   speedMph: number;
   incline: number;
-  durationSec: number; // stored in seconds for precision
+  durationSec: number;
 }
 
 const DEFAULT_INTERVALS: Interval[] = [
-  { speedMph: 4.0, incline: 0, durationSec: 120 }, // 2 min walk
-  { speedMph: 6.5, incline: 0, durationSec: 60 },  // 1 min run
+  { label: "Walk", speedMph: 4.0, incline: 0, durationSec: 120 },
+  { label: "Run",  speedMph: 6.5, incline: 0, durationSec: 60  },
 ];
 
 function formatSec(s: number) {
@@ -76,22 +77,85 @@ function formatSec(s: number) {
 function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated }: Props) {
   const supabase = createClient();
 
-  // Decode stored intervals: reps_per_set = durations (sec), weight_per_set = speed*10+incline encoded
   const decodeIntervals = (): Interval[] => {
     if (!existingLog || existingLog.sets_completed === 0) return DEFAULT_INTERVALS;
     return existingLog.reps_per_set.map((dur, i) => {
       const encoded = existingLog.weight_per_set[i] ?? 65;
       const speedMph = Math.floor(encoded) / 10;
-      const incline = encoded % 1 === 0 ? 0 : Math.round((encoded % 1) * 10);
+      const incline = Math.round((encoded % 1) * 10);
       return { durationSec: dur, speedMph, incline };
     });
   };
 
   const [intervals, setIntervals] = useState<Interval[]>(decodeIntervals);
   const [rounds, setRounds] = useState(4);
+  const [felt, setFelt] = useState<1 | 2 | 3>(2);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const done = (existingLog?.sets_completed ?? 0) >= 1;
+
+  // Fetch last exercise_log for this exercise and get AI suggestion
+  useState(() => {
+    if (existingLog) return; // already have a log for this session — don't overwrite
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Find the most recent log for this exercise name (across all sessions)
+      const { data: lastLog } = await supabase
+        .from("exercise_logs")
+        .select("reps_per_set, weight_per_set, sets_completed, session_id")
+        .eq("exercise_name", exercise.name)
+        .neq("session_id", sessionId) // not the current session
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!lastLog || !lastLog.reps_per_set?.length) return;
+
+      // Decode last intervals
+      const lastIntervals: Interval[] = lastLog.reps_per_set.map((dur: number, i: number) => {
+        const encoded = lastLog.weight_per_set[i] ?? 65;
+        return {
+          speedMph: Math.floor(encoded) / 10,
+          incline: Math.round((encoded % 1) * 10),
+          durationSec: dur,
+        };
+      });
+
+      // Check if a felt rating was stored (via cardio_data on the parent session)
+      const { data: parentSession } = await supabase
+        .from("workout_sessions")
+        .select("cardio_data")
+        .eq("id", lastLog.session_id)
+        .maybeSingle();
+
+      const lastFelt = (parentSession?.cardio_data as Record<string, unknown> | null)?.felt ?? 2;
+
+      setSuggestionLoading(true);
+      try {
+        const res = await fetch("/api/suggest-cardio", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cardioType: "treadmill",
+            lastIntervals,
+            lastRounds: lastLog.sets_completed ?? 4,
+            lastFelt,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.intervals) { setIntervals(data.intervals); setRounds(data.rounds ?? 4); }
+        if (data.suggestion) setSuggestion(data.suggestion);
+      } finally {
+        setSuggestionLoading(false);
+      }
+    })();
+  });
 
   const updateInterval = (i: number, field: keyof Interval, delta: number) => {
     setIntervals((prev) => prev.map((iv, idx) => {
@@ -112,22 +176,25 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
 
   const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
 
+  const encodeSpeed = (iv: Interval) => iv.speedMph * 10 + iv.incline * 0.1;
+  const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
+
   const logIntervals = async () => {
     setSaving(true);
     setSaveError("");
-    const durations = intervals.map((iv) => iv.durationSec);
-    const speeds = intervals.map((iv) => encodeSpeed(iv));
     const payload = {
       sets_completed: rounds,
-      reps_per_set: durations,
-      weight_per_set: speeds,
+      reps_per_set: intervals.map((iv) => iv.durationSec),
+      weight_per_set: intervals.map((iv) => encodeSpeed(iv)),
     };
     if (existingLog) {
       const { data, error } = await supabase.from("exercise_logs").update(payload).eq("id", existingLog.id).select().single();
       if (error) setSaveError("Failed to save.");
       else if (data) onLogUpdated(data);
     } else {
-      const { data, error } = await supabase.from("exercise_logs").insert({ session_id: sessionId, exercise_name: exercise.name, ...payload }).select().single();
+      const { data, error } = await supabase.from("exercise_logs")
+        .insert({ session_id: sessionId, exercise_name: exercise.name, felt, ...payload })
+        .select().single();
       if (error) setSaveError("Failed to save.");
       else if (data) onLogUpdated(data);
     }
@@ -166,42 +233,58 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
         </div>
       ) : (
         <>
+          {/* AI suggestion banner */}
+          {suggestionLoading && (
+            <div className="mb-3 rounded-xl border border-purple-500/30 bg-purple-500/5 px-3 py-2 flex items-center gap-2">
+              <span className="text-purple-400 animate-spin text-sm">⚙️</span>
+              <p className="text-xs text-purple-300">Checking your last session…</p>
+            </div>
+          )}
+          {suggestion && !suggestionDismissed && (
+            <div className="mb-3 rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex gap-2">
+                  <span className="text-sm mt-0.5">🤖</span>
+                  <p className="text-xs text-gray-300">{suggestion}</p>
+                </div>
+                <button onClick={() => setSuggestionDismissed(true)} className="text-gray-500 hover:text-gray-300 text-sm shrink-0">✕</button>
+              </div>
+            </div>
+          )}
+
           {/* Intervals */}
           <div className="space-y-3 mb-4">
             {intervals.map((iv, i) => (
               <div key={i} className="rounded-xl border border-gray-700 bg-gray-900 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-400">Interval {i + 1}</p>
+                  <p className="text-xs font-semibold text-gray-400">{iv.label ?? `Interval ${i + 1}`}</p>
                   {intervals.length > 1 && (
-                    <button onClick={() => removeInterval(i)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                    <button onClick={() => setIntervals((p) => p.filter((_, idx) => idx !== i))} className="text-xs text-red-400 hover:text-red-300">Remove</button>
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  {/* Speed */}
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Speed (mph)</p>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateInterval(i, "speedMph", -0.5)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <MiniBtn onClick={() => updateInterval(i, "speedMph", -0.5)}>−</MiniBtn>
                       <span className="flex-1 text-sm font-bold tabular-nums">{iv.speedMph.toFixed(1)}</span>
-                      <button onClick={() => updateInterval(i, "speedMph", 0.5)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                      <MiniBtn onClick={() => updateInterval(i, "speedMph", 0.5)}>+</MiniBtn>
                     </div>
                   </div>
-                  {/* Incline */}
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Incline (%)</p>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateInterval(i, "incline", -1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <MiniBtn onClick={() => updateInterval(i, "incline", -1)}>−</MiniBtn>
                       <span className="flex-1 text-sm font-bold tabular-nums">{iv.incline}%</span>
-                      <button onClick={() => updateInterval(i, "incline", 1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                      <MiniBtn onClick={() => updateInterval(i, "incline", 1)}>+</MiniBtn>
                     </div>
                   </div>
-                  {/* Duration */}
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Duration</p>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateInterval(i, "durationSec", -15)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+                      <MiniBtn onClick={() => updateInterval(i, "durationSec", -15)}>−</MiniBtn>
                       <span className="flex-1 text-xs font-bold tabular-nums">{formatSec(iv.durationSec)}</span>
-                      <button onClick={() => updateInterval(i, "durationSec", 15)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+                      <MiniBtn onClick={() => updateInterval(i, "durationSec", 15)}>+</MiniBtn>
                     </div>
                   </div>
                 </div>
@@ -213,19 +296,33 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
             + Add interval
           </button>
 
-          {/* Rounds */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-400">Rounds</p>
             <div className="flex items-center gap-3">
-              <button onClick={() => setRounds((r) => Math.max(1, r - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">−</button>
+              <MiniBtn onClick={() => setRounds((r) => Math.max(1, r - 1))}>−</MiniBtn>
               <span className="text-lg font-bold w-6 text-center">{rounds}</span>
-              <button onClick={() => setRounds((r) => r + 1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold">+</button>
+              <MiniBtn onClick={() => setRounds((r) => r + 1)}>+</MiniBtn>
             </div>
           </div>
 
           <p className="text-xs text-gray-500 text-center mb-3">
             Total: {formatSec(totalTime)} · {intervals.length} intervals × {rounds} rounds
           </p>
+
+          {/* How did it feel */}
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-2">How does it feel? <span className="text-gray-600">(used next session)</span></p>
+            <div className="grid grid-cols-3 gap-1">
+              {INTENSITIES.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => setFelt(opt.value as 1 | 2 | 3)}
+                  className={`rounded-lg border py-1.5 text-xs font-semibold transition-colors ${
+                    felt === opt.value ? `${opt.border} ${opt.bg} ${opt.color}` : "border-gray-700 text-gray-500"
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {saveError && <p className="mb-2 text-xs text-red-400 text-center">{saveError}</p>}
 
@@ -235,6 +332,15 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
         </>
       )}
     </Card>
+  );
+}
+
+function MiniBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-sm font-bold text-white hover:bg-gray-700 transition-colors">
+      {children}
+    </button>
   );
 }
 
