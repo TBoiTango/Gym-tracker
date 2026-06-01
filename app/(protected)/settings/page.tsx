@@ -216,7 +216,7 @@ export default function SettingsPage() {
             Changed your goal or duration? Regenerate your plan to match your new preferences.
           </p>
           <Link
-            href="/setup/plan"
+            href="/setup/plan?regenerate=true"
             className="block w-full rounded-xl border border-orange-500 py-3 text-center text-sm font-semibold text-orange-400 hover:bg-orange-500/10 transition-colors"
           >
             Regenerate Workout Plan 🤖

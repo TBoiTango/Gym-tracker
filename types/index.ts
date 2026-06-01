@@ -8,7 +8,9 @@ export type SplitType =
   | "upper_lower"  // Upper/Lower — 4 days/week
   | "full_body"    // Full Body — 3 days/week
   | "bro_split"    // Bro Split (chest/back/shoulders/arms/legs) — 5 days/week
-  | "ppl_ul";      // PPL + Upper/Lower hybrid — 5 days/week
+  | "ppl_ul"       // PPL + Upper/Lower hybrid — 5 days/week
+  | "no_split"     // No structured split — ad-hoc free sessions
+  | "cardio_only"; // Cardio-focused — no lifting plan
 
 // ── Database row types ────────────────────────────────────────────────────────
 
@@ -142,11 +144,17 @@ export const EQUIPMENT_OPTIONS = [
   { id: "battle_ropes", label: "Battle Ropes" },
 ] as const;
 
-export const SPLIT_OPTIONS: { id: SplitType; label: string; days: number }[] = [
+export const SPLIT_OPTIONS: { id: SplitType; label: string; days: number; description?: string }[] = [
   { id: "full_body", label: "Full Body", days: 3 },
   { id: "upper_lower", label: "Upper / Lower", days: 4 },
   { id: "ppl_3", label: "Push / Pull / Legs (3 days)", days: 3 },
   { id: "ppl_6", label: "Push / Pull / Legs (6 days)", days: 6 },
   { id: "bro_split", label: "Bro Split", days: 5 },
   { id: "ppl_ul", label: "PPL + Upper/Lower Hybrid", days: 5 },
+];
+
+// Non-plan workout styles — shown separately from structured splits
+export const FLEXIBLE_STYLE_OPTIONS: { id: "no_split" | "cardio_only"; label: string; description: string; emoji: string }[] = [
+  { id: "no_split", label: "No Split", description: "No structured plan — log free sessions whenever you want", emoji: "🎯" },
+  { id: "cardio_only", label: "Cardio Only", description: "Cardio-focused training — log runs, swims, rides, and more", emoji: "🏃" },
 ];
