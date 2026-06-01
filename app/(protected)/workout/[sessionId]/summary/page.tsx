@@ -61,7 +61,7 @@ export default async function SessionSummaryPage({ params }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <StatCard label="Exercises" value={exerciseLogs.length.toString()} />
-        <StatCard label="Total Volume" value={`${Math.round(totalVolume / 1000)}t`} />
+        <StatCard label="Total Volume" value={`${Math.round(totalVolume).toLocaleString()} lbs`} />
         {duration !== null && <StatCard label="Duration" value={`${duration}m`} />}
       </div>
 
@@ -77,12 +77,12 @@ export default async function SessionSummaryPage({ params }: Props) {
               <div key={log.id}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="font-medium">{log.exercise_name}</span>
-                  <span className="text-gray-400">{vol.toLocaleString()} kg</span>
+                  <span className="text-gray-400">{vol.toLocaleString()} lbs</span>
                 </div>
                 <p className="text-xs text-gray-500">
                   {log.sets_completed} sets ·{" "}
                   {log.reps_per_set.join(", ")} reps ·{" "}
-                  {log.weight_per_set.join(", ")} kg
+                  {log.weight_per_set.join(", ")} lbs
                 </p>
               </div>
             );

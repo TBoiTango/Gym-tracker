@@ -1,7 +1,9 @@
 "use client";
 
-// The main logging card. Large +/- buttons so you can operate it with sweaty hands at the gym.
-// Each set is logged individually. The card shows how many sets you've done vs target.
+// Workout logging card.
+// Weight: tap the number to type it directly, or use +/- for quick adjustments.
+// Reps: +/- buttons (easier mid-set with sweaty hands).
+// Everything is in lbs.
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, ExerciseLog } from "@/types";
@@ -17,41 +19,62 @@ interface Props {
 export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUpdated }: Props) {
   const supabase = createClient();
 
-  // Current values the user is about to log for the next set
   const [weight, setWeight] = useState(
-    existingLog?.weight_per_set.slice(-1)[0] ?? 20
+    existingLog?.weight_per_set.slice(-1)[0] ?? 45
+  );
+  const [weightInput, setWeightInput] = useState(
+    String(existingLog?.weight_per_set.slice(-1)[0] ?? 45)
   );
   const [reps, setReps] = useState(
     existingLog?.reps_per_set.slice(-1)[0] ?? parseInt(exercise.rep_range.split("-")[0]) ?? 10
   );
-  const [notes, setNotes] = useState(existingLog?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   const setsLogged = existingLog?.sets_completed ?? 0;
   const targetSets = exercise.sets;
   const done = setsLogged >= targetSets;
 
+  // Keep weight number and text input in sync
+  const handleWeightChange = (val: string) => {
+    setWeightInput(val);
+    const num = parseFloat(val);
+    if (!isNaN(num) && num >= 0) setWeight(num);
+  };
+
+  const handleWeightBlur = () => {
+    // On blur, clean up the display (e.g. "45." → "45")
+    const num = parseFloat(weightInput);
+    if (isNaN(num) || num < 0) {
+      setWeightInput(String(weight));
+    } else {
+      setWeight(num);
+      setWeightInput(String(num));
+    }
+  };
+
+  const adjustWeight = (delta: number) => {
+    const next = Math.max(0, +(weight + delta).toFixed(1));
+    setWeight(next);
+    setWeightInput(String(next));
+  };
+
   const logSet = async () => {
     setSaving(true);
 
     if (existingLog) {
-      // Append set data to existing log row
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("exercise_logs")
         .update({
           sets_completed: setsLogged + 1,
           reps_per_set: [...(existingLog.reps_per_set ?? []), reps],
           weight_per_set: [...(existingLog.weight_per_set ?? []), weight],
-          notes: notes || existingLog.notes,
         })
         .eq("id", existingLog.id)
         .select()
         .single();
-
       if (data) onLogUpdated(data);
     } else {
-      // Create a new log row for this exercise
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("exercise_logs")
         .insert({
           session_id: sessionId,
@@ -59,11 +82,9 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
           sets_completed: 1,
           reps_per_set: [reps],
           weight_per_set: [weight],
-          notes: notes || null,
         })
         .select()
         .single();
-
       if (data) onLogUpdated(data);
     }
 
@@ -73,27 +94,26 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
   return (
     <Card className={done ? "border-green-700/40 bg-green-900/10" : ""}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex-1 mr-2">
           <p className="font-bold">{exercise.name}</p>
           <p className="text-xs text-gray-500 italic mt-0.5">{exercise.coaching_note}</p>
         </div>
-        <span className={`text-sm font-mono font-semibold ${done ? "text-green-400" : "text-orange-400"}`}>
+        <span className={`shrink-0 text-sm font-mono font-semibold ${done ? "text-green-400" : "text-orange-400"}`}>
           {setsLogged}/{targetSets}
         </span>
       </div>
 
-      {/* Target */}
       <p className="text-xs text-gray-500 mb-4">
         Target: {exercise.sets} × {exercise.rep_range} reps · {exercise.rest_seconds}s rest
       </p>
 
-      {/* Set history */}
+      {/* Set history — shown as pills */}
       {existingLog && existingLog.reps_per_set.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {existingLog.reps_per_set.map((r, i) => (
             <span key={i} className="rounded-lg bg-gray-800 px-2 py-1 text-xs text-gray-300">
-              {existingLog.weight_per_set[i]}kg × {r}
+              {existingLog.weight_per_set[i]} lbs × {r}
             </span>
           ))}
         </div>
@@ -101,31 +121,38 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
 
       {!done && (
         <>
-          {/* Weight stepper */}
+          {/* Weight — tap number to type, or use +/- */}
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">Weight (kg)</p>
+            <p className="text-xs text-gray-500 mb-2">Weight (lbs)</p>
             <div className="flex items-center gap-3">
-              <StepButton onClick={() => setWeight((w) => Math.max(0, +(w - 2.5).toFixed(1)))}>−</StepButton>
-              <span className="w-16 text-center text-xl font-bold tabular-nums">{weight}</span>
-              <StepButton onClick={() => setWeight((w) => +(w + 2.5).toFixed(1))}>+</StepButton>
+              <StepButton onClick={() => adjustWeight(-5)}>−</StepButton>
+              {/* Tappable input — opens number keyboard on mobile */}
+              <input
+                type="number"
+                inputMode="decimal"
+                value={weightInput}
+                onChange={(e) => handleWeightChange(e.target.value)}
+                onBlur={handleWeightBlur}
+                className="w-20 rounded-xl border border-gray-600 bg-gray-800 py-2 text-center text-xl font-bold text-white focus:border-orange-500 focus:outline-none"
+              />
+              <StepButton onClick={() => adjustWeight(5)}>+</StepButton>
             </div>
           </div>
 
-          {/* Reps stepper */}
+          {/* Reps — +/- only (easier mid-set) */}
           <div className="mb-4">
-            <p className="text-xs text-gray-500 mb-1">Reps</p>
+            <p className="text-xs text-gray-500 mb-2">Reps</p>
             <div className="flex items-center gap-3">
               <StepButton onClick={() => setReps((r) => Math.max(1, r - 1))}>−</StepButton>
-              <span className="w-16 text-center text-xl font-bold tabular-nums">{reps}</span>
+              <span className="w-20 text-center text-xl font-bold tabular-nums">{reps}</span>
               <StepButton onClick={() => setReps((r) => r + 1)}>+</StepButton>
             </div>
           </div>
 
-          {/* Log set button */}
           <button
             onClick={logSet}
             disabled={saving}
-            className="w-full rounded-xl bg-gray-800 py-3 text-sm font-semibold text-white hover:bg-gray-700 active:bg-gray-600 disabled:opacity-50 transition-colors"
+            className="w-full rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 active:bg-orange-700 disabled:opacity-50 transition-colors"
           >
             {saving ? "Saving…" : `Log Set ${setsLogged + 1}`}
           </button>
@@ -141,7 +168,6 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
   );
 }
 
-// Large button for the +/- steppers — easy to tap in the gym
 function StepButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button
