@@ -46,6 +46,43 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       .finally(() => setWarmupLoading(false));
   }, []);
 
+  // Swap exercise state
+  const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+
+  const swapExercise = async (index: number) => {
+    setSwappingIndex(index);
+    try {
+      // Fetch user equipment for context
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      let equipment: string[] = [];
+      if (authSession) {
+        const { data: userGym } = await supabase
+          .from("user_gyms")
+          .select("equipment_list")
+          .eq("user_id", authSession.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        equipment = (userGym?.equipment_list as string[]) ?? [];
+      }
+
+      const res = await fetch("/api/swap-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exerciseName: exercises[index].name,
+          muscleFocus: planDay.muscle_focus || planDay.day_name,
+          equipment,
+        }),
+      });
+      if (!res.ok) return;
+      const newExercise = await res.json();
+      setExercises((prev) => prev.map((ex, i) => i === index ? newExercise : ex));
+    } finally {
+      setSwappingIndex(null);
+    }
+  };
+
   // Skip exercise state
   const [skipIndex, setSkipIndex] = useState<number | null>(null);
   const SKIP_REASONS = ["Feeling sore", "No equipment", "Short on time", "Other"];
@@ -223,12 +260,22 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
                 >↓</button>
               </div>
 
-              {/* Skip button */}
-              <button
-                onClick={() => setSkipIndex(i)}
-                className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
-                title="Skip exercise"
-              >✕</button>
+              {/* Change + Skip buttons */}
+              <div className="absolute -right-1 -top-1 z-10 flex gap-1">
+                <button
+                  onClick={() => swapExercise(i)}
+                  disabled={swappingIndex === i}
+                  className="flex h-6 items-center justify-center rounded-full bg-gray-800 px-2 text-gray-400 hover:bg-orange-900/60 hover:text-orange-400 transition-colors text-xs font-semibold disabled:opacity-50"
+                  title="Swap for a different exercise"
+                >
+                  {swappingIndex === i ? "…" : "Change"}
+                </button>
+                <button
+                  onClick={() => setSkipIndex(i)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
+                  title="Skip exercise"
+                >✕</button>
+              </div>
 
               <div className="pl-7">
                 <ExerciseCard
