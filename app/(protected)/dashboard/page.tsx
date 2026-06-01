@@ -147,7 +147,7 @@ export default async function DashboardPage() {
           History
         </Link>
         <Link href="/analytics" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
-          Analytics 📊
+          Analytics
         </Link>
         <Link href="/settings" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
           Settings

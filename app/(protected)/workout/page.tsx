@@ -338,7 +338,7 @@ export default function WorkoutPage() {
             {error && <p className="text-sm text-red-400">{error}</p>}
 
             <Button onClick={generate} loading={step === "generating"} className="w-full text-lg py-4">
-              {step === "generating" ? "Building your workout…" : "Generate Today's Workout 🤖"}
+              {step === "generating" ? "Generating Workout…" : "Generate Today's Workout"}
             </Button>
           </div>
         </>
