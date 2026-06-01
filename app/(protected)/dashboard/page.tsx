@@ -142,9 +142,12 @@ export default async function DashboardPage() {
       )}
 
       {/* Nav links */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Link href="/workout/history" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
           History
+        </Link>
+        <Link href="/analytics" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
+          Analytics 📊
         </Link>
         <Link href="/settings" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
           Settings

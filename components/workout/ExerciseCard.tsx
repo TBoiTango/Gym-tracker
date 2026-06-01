@@ -1,13 +1,14 @@
 "use client";
 
 // Workout logging card.
-// Weight: tap the number to type it directly, or use +/- for quick adjustments.
-// Reps: +/- buttons (easier mid-set with sweaty hands).
+// Weight: tap the number to type it, or use +/- for quick adjustments.
+// After each logged set, a rest timer auto-starts.
 // Everything is in lbs.
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
+import RestTimer from "@/components/workout/RestTimer";
 
 interface Props {
   exercise: Exercise;
@@ -16,26 +17,26 @@ interface Props {
   onLogUpdated: (log: ExerciseLog) => void;
 }
 
+// Cap rest at 90 seconds regardless of what Claude suggests
+const MAX_REST = 90;
+
 export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUpdated }: Props) {
   const supabase = createClient();
 
-  const [weight, setWeight] = useState(
-    existingLog?.weight_per_set.slice(-1)[0] ?? 45
-  );
-  const [weightInput, setWeightInput] = useState(
-    String(existingLog?.weight_per_set.slice(-1)[0] ?? 45)
-  );
+  const [weight, setWeight] = useState(existingLog?.weight_per_set.slice(-1)[0] ?? 45);
+  const [weightInput, setWeightInput] = useState(String(existingLog?.weight_per_set.slice(-1)[0] ?? 45));
   const [reps, setReps] = useState(
     existingLog?.reps_per_set.slice(-1)[0] ?? parseInt(exercise.rep_range.split("-")[0]) ?? 10
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [showTimer, setShowTimer] = useState(false);
+  const [restSeconds, setRestSeconds] = useState(0);
 
   const setsLogged = existingLog?.sets_completed ?? 0;
   const targetSets = exercise.sets;
   const done = setsLogged >= targetSets;
 
-  // Keep weight number and text input in sync
   const handleWeightChange = (val: string) => {
     setWeightInput(val);
     const num = parseFloat(val);
@@ -43,14 +44,9 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
   };
 
   const handleWeightBlur = () => {
-    // On blur, clean up the display (e.g. "45." → "45")
     const num = parseFloat(weightInput);
-    if (isNaN(num) || num < 0) {
-      setWeightInput(String(weight));
-    } else {
-      setWeight(num);
-      setWeightInput(String(num));
-    }
+    if (isNaN(num) || num < 0) setWeightInput(String(weight));
+    else { setWeight(num); setWeightInput(String(num)); }
   };
 
   const adjustWeight = (delta: number) => {
@@ -74,7 +70,7 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
         .eq("id", existingLog.id)
         .select()
         .single();
-      if (error) { setSaveError("Failed to save — check your connection."); }
+      if (error) setSaveError("Failed to save — check your connection.");
       else if (data) onLogUpdated(data);
     } else {
       const { data, error } = await supabase
@@ -88,11 +84,19 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
         })
         .select()
         .single();
-      if (error) { setSaveError("Failed to save — check your connection."); }
+      if (error) setSaveError("Failed to save — check your connection.");
       else if (data) onLogUpdated(data);
     }
 
     setSaving(false);
+
+    // Start rest timer unless this was the last set
+    const newSetsLogged = setsLogged + 1;
+    if (newSetsLogged < targetSets) {
+      const rest = Math.min(exercise.rest_seconds ?? 90, MAX_REST);
+      setRestSeconds(rest);
+      setShowTimer(true);
+    }
   };
 
   return (
@@ -109,10 +113,10 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
       </div>
 
       <p className="text-xs text-gray-500 mb-4">
-        Target: {exercise.sets} × {exercise.rep_range} reps · {exercise.rest_seconds}s rest
+        Target: {exercise.sets} × {exercise.rep_range} reps · {Math.min(exercise.rest_seconds, MAX_REST)}s rest
       </p>
 
-      {/* Set history — shown as pills */}
+      {/* Set history pills */}
       {existingLog && existingLog.reps_per_set.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {existingLog.reps_per_set.map((r, i) => (
@@ -123,14 +127,21 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
         </div>
       )}
 
-      {!done && (
+      {/* Rest timer — shown between sets */}
+      {showTimer && (
+        <RestTimer
+          seconds={restSeconds}
+          onDismiss={() => setShowTimer(false)}
+        />
+      )}
+
+      {!done && !showTimer && (
         <>
-          {/* Weight — tap number to type, or use +/- */}
+          {/* Weight */}
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-2">Weight (lbs)</p>
             <div className="flex items-center gap-3">
               <StepButton onClick={() => adjustWeight(-5)}>−</StepButton>
-              {/* Tappable input — opens number keyboard on mobile */}
               <input
                 type="number"
                 inputMode="decimal"
@@ -143,7 +154,7 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
             </div>
           </div>
 
-          {/* Reps — +/- only (easier mid-set) */}
+          {/* Reps */}
           <div className="mb-4">
             <p className="text-xs text-gray-500 mb-2">Reps</p>
             <div className="flex items-center gap-3">
@@ -154,6 +165,7 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
           </div>
 
           {saveError && <p className="mb-2 text-xs text-red-400 text-center">{saveError}</p>}
+
           <button
             onClick={logSet}
             disabled={saving}
@@ -162,6 +174,11 @@ export default function ExerciseCard({ exercise, sessionId, existingLog, onLogUp
             {saving ? "Saving…" : `Log Set ${setsLogged + 1}`}
           </button>
         </>
+      )}
+
+      {/* Show log button again after timer is dismissed */}
+      {!done && showTimer && (
+        <p className="text-xs text-center text-gray-600 mt-2">Complete your rest, then dismiss to log the next set</p>
       )}
 
       {done && (

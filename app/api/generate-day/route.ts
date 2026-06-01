@@ -65,7 +65,7 @@ Core rules: ${coreSection}
 
 General rules:
 1. Only use exercises possible with the listed equipment.
-2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 2-4 min rest), hypertrophy (8-15 reps, 60-90s rest), endurance (15-25 reps, 30-60s rest).
+2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 75-90s rest), hypertrophy (8-15 reps, 60-75s rest), endurance (15-25 reps, 30-45s rest). MAXIMUM rest_seconds is 90 — never exceed this.
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
 5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
