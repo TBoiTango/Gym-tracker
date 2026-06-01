@@ -33,37 +33,37 @@ export default function SetupGymPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    // Upsert gym by name (handles duplicate gym names gracefully)
-    const { data: gym, error: gymError } = await supabase
+    // Find existing gym by name, or create a new one
+    let gymId: string;
+    const { data: existingGym } = await supabase
       .from("gyms")
-      .upsert({ name: gymName.trim() }, { onConflict: "name", ignoreDuplicates: false })
-      .select()
-      .single();
+      .select("id")
+      .eq("name", gymName.trim())
+      .maybeSingle();
 
-    if (gymError) {
-      // Fallback: try to fetch existing gym with that name
-      const { data: existing } = await supabase
+    if (existingGym) {
+      gymId = existingGym.id;
+    } else {
+      const { data: newGym, error: createError } = await supabase
         .from("gyms")
+        .insert({ name: gymName.trim() })
         .select("id")
-        .eq("name", gymName.trim())
         .single();
-      if (!existing) { setError(gymError.message); setLoading(false); return; }
-      // Use the existing gym id
-      const { error: linkError2 } = await supabase
-        .from("user_gyms")
-        .upsert({ user_id: session.user.id, gym_id: existing.id, equipment_list: Array.from(selected) });
-      if (linkError2) { setError(linkError2.message); setLoading(false); return; }
-      router.push("/setup/plan");
-      return;
+      if (createError || !newGym) {
+        setError(createError?.message ?? "Failed to save gym.");
+        setLoading(false);
+        return;
+      }
+      gymId = newGym.id;
     }
 
     const { error: linkError } = await supabase
       .from("user_gyms")
       .upsert({
         user_id: session.user.id,
-        gym_id: gym.id,
+        gym_id: gymId,
         equipment_list: Array.from(selected),
-      });
+      }, { onConflict: "user_id,gym_id" });
 
     if (linkError) { setError(linkError.message); setLoading(false); return; }
 
