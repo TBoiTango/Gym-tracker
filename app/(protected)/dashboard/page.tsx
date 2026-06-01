@@ -141,11 +141,14 @@ export default async function DashboardPage() {
       )}
 
       {/* Nav links */}
-      <div className="flex gap-3">
-        <Link href="/workout/history" className="flex-1 rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
+      <div className="grid grid-cols-3 gap-3">
+        <Link href="/workout/history" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
           History
         </Link>
-        <form action="/auth/signout" method="POST" className="flex-1">
+        <Link href="/settings" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
+          Settings
+        </Link>
+        <form action="/auth/signout" method="POST">
           <button type="submit" className="w-full rounded-xl border border-gray-700 py-3 text-sm text-gray-400 hover:border-gray-500">
             Sign Out
           </button>
