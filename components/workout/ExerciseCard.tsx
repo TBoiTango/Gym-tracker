@@ -171,11 +171,6 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
   const addInterval = () => setIntervals((prev) => [...prev, { speedMph: 5.0, incline: 0, durationSec: 60 }]);
   const removeInterval = (i: number) => setIntervals((prev) => prev.filter((_, idx) => idx !== i));
 
-  // Encode: speed stored as integer tenths (e.g. 6.5 → 65), incline added as decimal (6.5mph, 3% → 65.3)
-  const encodeSpeed = (iv: Interval) => iv.speedMph * 10 + iv.incline * 0.1;
-
-  const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
-
   const encodeSpeed = (iv: Interval) => iv.speedMph * 10 + iv.incline * 0.1;
   const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
 
