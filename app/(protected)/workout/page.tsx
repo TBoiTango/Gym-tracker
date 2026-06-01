@@ -21,20 +21,45 @@ export default function WorkoutPage() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const [step, setStep] = useState<"pick-day" | "options" | "generating" | "preview">("pick-day");
+  const SESSION_KEY = "wb_workout_state";
+
+  // Restore persisted state so navigating away and back doesn't reset the flow
+  const getSaved = () => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "{}"); } catch { return {}; }
+  };
+  const saved = getSaved();
+
+  const [step, setStep] = useState<"pick-day" | "options" | "generating" | "preview">(saved.step ?? "pick-day");
   const [allDays, setAllDays] = useState<PlanDay[]>([]);
-  const [selectedDay, setSelectedDay] = useState<PlanDay | null>(null);
-  const [duration, setDuration] = useState(60);
-  const [includeCardio, setIncludeCardio] = useState(false);
-  const [cardioIntensity, setCardioIntensity] = useState<"easy" | "moderate" | "hard">("moderate");
-  const [cardioType, setCardioType] = useState("Treadmill");
-  const [includeCore, setIncludeCore] = useState(false);
-  const [generatedDay, setGeneratedDay] = useState<PlanDay | null>(null);
+  const [selectedDay, setSelectedDay] = useState<PlanDay | null>(saved.selectedDay ?? null);
+  const [duration, setDuration] = useState<number>(saved.duration ?? 60);
+  const [includeCardio, setIncludeCardio] = useState<boolean>(saved.includeCardio ?? false);
+  const [cardioIntensity, setCardioIntensity] = useState<"easy" | "moderate" | "hard">(saved.cardioIntensity ?? "moderate");
+  const [cardioType, setCardioType] = useState<string>(saved.cardioType ?? "Treadmill");
+  const [includeCore, setIncludeCore] = useState<boolean>(saved.includeCore ?? false);
+  const [generatedDay, setGeneratedDay] = useState<PlanDay | null>(saved.generatedDay ?? null);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState(false);
   const [equipment, setEquipment] = useState<string[]>([]);
   const [profile, setProfile] = useState<{ experience_level: string; goal: string } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Persist state to sessionStorage whenever key values change
+  useEffect(() => {
+    if (loading) return;
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+        step: step === "generating" ? "options" : step, // never restore mid-generate
+        selectedDay,
+        duration,
+        includeCardio,
+        cardioIntensity,
+        cardioType,
+        includeCore,
+        generatedDay,
+      }));
+    } catch {}
+  }, [step, selectedDay, duration, includeCardio, cardioIntensity, cardioType, includeCore, generatedDay, loading]);
 
   useEffect(() => {
     const load = async () => {
@@ -55,20 +80,28 @@ export default function WorkoutPage() {
 
       if (profileRes.data) {
         setProfile({ experience_level: profileRes.data.experience_level, goal: profileRes.data.goal });
-        setDuration(profileRes.data.workout_duration ?? 60);
-        setIncludeCardio(profileRes.data.include_cardio ?? false);
+        // Only apply profile defaults if there's no saved state
+        const hasSaved = Object.keys(getSaved()).length > 0;
+        if (!hasSaved) {
+          setDuration(profileRes.data.workout_duration ?? 60);
+          setIncludeCardio(profileRes.data.include_cardio ?? false);
+        }
       }
 
       // Work out which day is "next" based on completed sessions
       const dayParam = searchParams.get("day");
+      const hasSaved = Object.keys(getSaved()).length > 0;
       if (dayParam && days.length) {
+        // Dashboard CTA with a specific day — always honour it and clear saved state
         const found = days.find((d) => d.day_name === dayParam);
         if (found) {
+          try { sessionStorage.removeItem(SESSION_KEY); } catch {}
           setSelectedDay(found);
-          setStep("options"); // Skip day picker if coming from dashboard CTA
+          setGeneratedDay(null);
+          setStep("options");
         }
-      } else if (days.length) {
-        // Default: next day in rotation
+      } else if (!hasSaved && days.length) {
+        // No saved state — default to next day in rotation
         const completedCount = sessionsRes.data?.length ?? 0;
         const nextIndex = completedCount % days.length;
         setSelectedDay(days[nextIndex]);
@@ -120,6 +153,8 @@ export default function WorkoutPage() {
   const startWorkout = async () => {
     if (!generatedDay) return;
     setStarting(true);
+    // Clear saved state so next visit starts fresh
+    try { sessionStorage.removeItem(SESSION_KEY); } catch {}
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
