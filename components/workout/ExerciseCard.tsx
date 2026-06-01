@@ -157,10 +157,10 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
     })();
   }, []); // run once on mount
 
-  const updateInterval = (i: number, field: keyof Interval, delta: number) => {
+  const updateInterval = (i: number, field: "speedMph" | "incline" | "durationSec", delta: number) => {
     setIntervals((prev) => prev.map((iv, idx) => {
       if (idx !== i) return iv;
-      let val = iv[field] + delta;
+      let val = (iv[field] as number) + delta;
       if (field === "speedMph") val = Math.max(0.5, Math.round(val * 10) / 10);
       if (field === "incline") val = Math.max(0, Math.min(15, val));
       if (field === "durationSec") val = Math.max(15, val);
