@@ -3,7 +3,7 @@
 // Workout logging card.
 // Lifting exercises: weight (lbs) + reps inputs with rest timer.
 // Cardio exercises (detected by name): duration (mins) + intensity picker.
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
@@ -98,7 +98,7 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
   const done = (existingLog?.sets_completed ?? 0) >= 1;
 
   // Fetch last exercise_log for this exercise and get AI suggestion
-  useState(() => {
+  useEffect(() => {
     if (existingLog) return; // already have a log for this session — don't overwrite
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -155,7 +155,7 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
         setSuggestionLoading(false);
       }
     })();
-  });
+  }, []); // run once on mount
 
   const updateInterval = (i: number, field: keyof Interval, delta: number) => {
     setIntervals((prev) => prev.map((iv, idx) => {
