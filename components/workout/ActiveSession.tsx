@@ -21,6 +21,17 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   const [logs, setLogs] = useState<ExerciseLog[]>(existingLogs);
   const [finishing, setFinishing] = useState(false);
 
+  // Skip exercise state
+  const [skipIndex, setSkipIndex] = useState<number | null>(null);
+  const SKIP_REASONS = ["Feeling sore", "No equipment", "Short on time", "Other"];
+
+  const confirmSkip = (reason: string) => {
+    if (skipIndex === null) return;
+    setExercises((prev) => prev.filter((_, i) => i !== skipIndex));
+    setSkipIndex(null);
+    console.log(`Skipped exercise: ${reason}`);
+  };
+
   // Add exercise modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -125,18 +136,21 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
                   disabled={i === 0}
                   className="flex h-6 w-6 items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-white disabled:opacity-20 text-xs"
                   title="Move up"
-                >
-                  ↑
-                </button>
+                >↑</button>
                 <button
                   onClick={() => moveExercise(i, "down")}
                   disabled={i === exercises.length - 1}
                   className="flex h-6 w-6 items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-white disabled:opacity-20 text-xs"
                   title="Move down"
-                >
-                  ↓
-                </button>
+                >↓</button>
               </div>
+
+              {/* Skip button */}
+              <button
+                onClick={() => setSkipIndex(i)}
+                className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
+                title="Skip exercise"
+              >✕</button>
 
               <div className="pl-7">
                 <ExerciseCard
@@ -163,6 +177,36 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       <Button onClick={finishWorkout} loading={finishing} className="w-full text-lg py-4">
         Finish Workout ✅
       </Button>
+
+      {/* Skip Exercise Modal */}
+      {skipIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setSkipIndex(null)}>
+          <div
+            className="w-full max-w-lg rounded-t-2xl bg-gray-900 border border-gray-700 p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold">Skip Exercise</h2>
+                <p className="text-sm text-gray-400 mt-0.5">{exercises[skipIndex]?.name}</p>
+              </div>
+              <button onClick={() => setSkipIndex(null)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+            <p className="text-sm text-gray-400">Why are you skipping this one?</p>
+            <div className="space-y-2">
+              {SKIP_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => confirmSkip(reason)}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-left text-sm text-gray-300 hover:border-orange-500 hover:text-white transition-colors"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Exercise Modal */}
       {showAddModal && (
