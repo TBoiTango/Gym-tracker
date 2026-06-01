@@ -33,29 +33,18 @@ export default function SetupGymPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    // Find existing gym by name, or create a new one
-    let gymId: string;
-    const { data: existingGym } = await supabase
+    // Create a new gym row (name is just a label, no uniqueness required)
+    const { data: newGym, error: createError } = await supabase
       .from("gyms")
+      .insert({ name: gymName.trim() })
       .select("id")
-      .eq("name", gymName.trim())
-      .maybeSingle();
-
-    if (existingGym) {
-      gymId = existingGym.id;
-    } else {
-      const { data: newGym, error: createError } = await supabase
-        .from("gyms")
-        .insert({ name: gymName.trim() })
-        .select("id")
-        .single();
-      if (createError || !newGym) {
-        setError(createError?.message ?? "Failed to save gym.");
-        setLoading(false);
-        return;
-      }
-      gymId = newGym.id;
+      .single();
+    if (createError || !newGym) {
+      setError(createError?.message ?? "Failed to save gym.");
+      setLoading(false);
+      return;
     }
+    const gymId = newGym.id;
 
     const { error: linkError } = await supabase
       .from("user_gyms")
