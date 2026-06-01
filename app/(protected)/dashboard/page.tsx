@@ -17,7 +17,7 @@ export default async function DashboardPage() {
 
   // Fetch everything in parallel
   const [profileRes, planRes, sessionsRes, suggestionRes] = await Promise.all([
-    supabase.from("profiles").select("name, workout_style").eq("user_id", userId).single(),
+    supabase.from("profiles").select("*").eq("user_id", userId).single(),
     supabase
       .from("workout_plans")
       .select("id, split_type, plan_data, created_at")
