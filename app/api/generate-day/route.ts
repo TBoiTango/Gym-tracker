@@ -1,3 +1,5 @@
+export const maxDuration = 60; // seconds — overrides Vercel's default 10s limit
+
 // POST /api/generate-day
 // Generates a single day's workout on the fly based on:
 // - Which muscle group day it is (e.g. "Push Day", "Legs")

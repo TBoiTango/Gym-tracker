@@ -6,7 +6,9 @@ import Anthropic from "@anthropic-ai/sdk";
 // ANTHROPIC_API_KEY is read from environment automatically by the SDK.
 export const anthropic = new Anthropic();
 
-export const CLAUDE_MODEL = "claude-sonnet-4-6";
+// Haiku is used for structured JSON generation (plans, sessions) — fast and cost-effective.
+// Switch to claude-sonnet-4-6 here if you want higher quality at the cost of speed.
+export const CLAUDE_MODEL = "claude-haiku-4-5";
 
 // Sends a single prompt and returns the text response.
 // Used for plan generation and variation suggestions.

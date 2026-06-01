@@ -1,3 +1,5 @@
+export const maxDuration = 60; // seconds — overrides Vercel's default 10s limit
+
 // POST /api/generate-plan
 // Receives equipment, experience, goal, split type, duration, and cardio preference.
 // Sends a structured prompt to Claude and returns PlanData JSON.
