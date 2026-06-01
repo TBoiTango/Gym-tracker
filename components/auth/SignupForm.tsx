@@ -19,12 +19,23 @@ export default function SignupForm() {
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
       setError(error.message);
       setLoading(false);
       return;
+    }
+
+    // Create a placeholder profile row for the new user.
+    // We do this here instead of a DB trigger to avoid auth-level permission issues.
+    if (data.user) {
+      await supabase.from("profiles").upsert({
+        user_id: data.user.id,
+        name: "",
+        experience_level: "beginner",
+        goal: "strength",
+      });
     }
 
     // After signup, go to setup wizard to complete the profile.
