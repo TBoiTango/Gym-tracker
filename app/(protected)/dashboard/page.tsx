@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import WeeklyRing from "@/components/dashboard/WeeklyRing";
 import StreakCounter from "@/components/dashboard/StreakCounter";
 import PlanSuggestionBanner from "@/components/dashboard/PlanSuggestionBanner";
+import SignOutButton from "@/components/dashboard/SignOutButton";
 
 export default async function DashboardPage() {
   const supabase = createServerClient();
@@ -148,11 +149,7 @@ export default async function DashboardPage() {
         <Link href="/settings" className="rounded-xl border border-gray-700 py-3 text-center text-sm text-gray-400 hover:border-gray-500">
           Settings
         </Link>
-        <form action="/auth/signout" method="POST">
-          <button type="submit" className="w-full rounded-xl border border-gray-700 py-3 text-sm text-gray-400 hover:border-gray-500">
-            Sign Out
-          </button>
-        </form>
+        <SignOutButton />
       </div>
     </main>
   );
