@@ -188,7 +188,7 @@ export default async function SessionSummaryPage({ params }: Props) {
               <div key={log.id} className="flex justify-between text-sm">
                 <span className="font-medium">{log.exercise_name}</span>
                 <span className="text-gray-400">
-                  {(log.reps_per_set as string[])[0] ?? `${log.sets_completed} set`}
+                  {(log.reps_per_set as number[])[0] ?? `${log.sets_completed} set`}
                 </span>
               </div>
             ))}
