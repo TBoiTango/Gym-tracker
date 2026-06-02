@@ -48,6 +48,11 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   // Swap exercise state
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
+  const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null); // muscle label being loaded
+  // Track all exercise names seen per slot (original + every swap) so we never repeat
+  const [seenExercises, setSeenExercises] = useState<Map<number, string[]>>(
+    () => new Map(planDay.exercises.map((ex, i) => [i, [ex.name]]))
+  );
 
   const swapExercise = async (index: number) => {
     setSwappingIndex(index);
@@ -66,6 +71,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         equipment = (userGym?.equipment_list as string[]) ?? [];
       }
 
+      const excludeExercises = seenExercises.get(index) ?? [exercises[index].name];
+
       const res = await fetch("/api/swap-exercise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,13 +80,91 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
           exerciseName: exercises[index].name,
           muscleFocus: planDay.muscle_focus || planDay.day_name,
           equipment,
+          excludeExercises,
         }),
       });
       if (!res.ok) return;
       const newExercise = await res.json();
+      // Record this new exercise name so it can't be suggested again for this slot
+      setSeenExercises((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(index) ?? [];
+        next.set(index, [...existing, newExercise.name]);
+        return next;
+      });
       setExercises((prev) => prev.map((ex, i) => i === index ? newExercise : ex));
     } finally {
       setSwappingIndex(null);
+    }
+  };
+
+  const quickAddGroups = (() => {
+    const focus = (planDay.muscle_focus || planDay.day_name).toLowerCase();
+    if (focus.includes("push") || focus.includes("chest"))
+      return [
+        { label: "Chest", muscle: "chest" },
+        { label: "Triceps", muscle: "triceps" },
+        { label: "Shoulders", muscle: "shoulders" },
+      ];
+    if (focus.includes("pull") || focus.includes("back"))
+      return [
+        { label: "Back", muscle: "back" },
+        { label: "Biceps", muscle: "biceps" },
+      ];
+    if (focus.includes("leg") || focus.includes("lower"))
+      return [
+        { label: "Quads", muscle: "quads" },
+        { label: "Hamstrings", muscle: "hamstrings" },
+        { label: "Glutes", muscle: "glutes" },
+        { label: "Calves", muscle: "calves" },
+      ];
+    if (focus.includes("upper"))
+      return [
+        { label: "Chest", muscle: "chest" },
+        { label: "Back", muscle: "back" },
+        { label: "Shoulders", muscle: "shoulders" },
+        { label: "Arms", muscle: "biceps" },
+      ];
+    return [
+      { label: "Core", muscle: "abs and core" },
+      { label: "Chest", muscle: "chest" },
+      { label: "Back", muscle: "back" },
+      { label: "Legs", muscle: "legs" },
+    ];
+  })();
+
+  const quickAdd = async (muscle: string, label: string) => {
+    setQuickAddLoading(label);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      let equipment: string[] = [];
+      if (authSession) {
+        const { data: userGym } = await supabase
+          .from("user_gyms")
+          .select("equipment_list")
+          .eq("user_id", authSession.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        equipment = (userGym?.equipment_list as string[]) ?? [];
+      }
+      // Exclude all exercises already in the session so we don't double up
+      const excludeExercises = exercises.map((e) => e.name);
+      const res = await fetch("/api/swap-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exerciseName: "",
+          muscleFocus: muscle,
+          equipment,
+          excludeExercises,
+        }),
+      });
+      if (!res.ok) return;
+      const newExercise = await res.json();
+      setExercises((prev) => [...prev, newExercise]);
+    } finally {
+      setQuickAddLoading(null);
     }
   };
 
@@ -260,16 +345,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
                 >↓</button>
               </div>
 
-              {/* Change + Skip buttons */}
-              <div className="absolute -right-1 -top-1 z-10 flex gap-1">
-                <button
-                  onClick={() => swapExercise(i)}
-                  disabled={swappingIndex === i}
-                  className="flex h-6 items-center justify-center rounded-full bg-gray-800 px-2 text-gray-400 hover:bg-orange-900/60 hover:text-orange-400 transition-colors text-xs font-semibold disabled:opacity-50"
-                  title="Swap for a different exercise"
-                >
-                  {swappingIndex === i ? "…" : "Change"}
-                </button>
+              {/* Skip button – top right only */}
+              <div className="absolute -right-1 -top-1 z-10">
                 <button
                   onClick={() => setSkipIndex(i)}
                   className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
@@ -285,10 +362,35 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
                   onLogUpdated={updateLog}
                   onAddSet={() => addSetToExercise(i)}
                 />
+                {/* Change exercise – below the card, no overlap */}
+                <button
+                  onClick={() => swapExercise(i)}
+                  disabled={swappingIndex === i}
+                  className="mt-1 w-full text-xs text-gray-600 hover:text-orange-400 transition-colors py-1 disabled:opacity-50"
+                >
+                  {swappingIndex === i ? "Finding alternative…" : "↻ Change exercise"}
+                </button>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Quick Add by muscle group */}
+      <div className="mb-4">
+        <p className="text-xs text-gray-500 mb-2">Quick Add</p>
+        <div className="flex flex-wrap gap-2">
+          {quickAddGroups.map(({ label, muscle }) => (
+            <button
+              key={label}
+              onClick={() => quickAdd(muscle, label)}
+              disabled={quickAddLoading !== null}
+              className="rounded-full border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:border-orange-500 hover:text-orange-400 disabled:opacity-50 transition-colors"
+            >
+              {quickAddLoading === label ? "Adding…" : `+ ${label}`}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Add Exercise button */}

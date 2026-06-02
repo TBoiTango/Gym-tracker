@@ -221,6 +221,21 @@ export default function WorkoutPage() {
                 </div>
               </button>
             ))}
+
+            {/* Rest day option */}
+            <Link
+              href="/workout/rest"
+              className="flex w-full items-center justify-between rounded-xl border border-gray-700 bg-gray-900 p-4 text-left text-gray-400 hover:border-green-700 hover:text-green-400 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">🌿</span>
+                <div>
+                  <p className="font-semibold text-sm">Rest Day</p>
+                  <p className="text-xs text-gray-600 mt-0.5">Recovery tips + stretching routine</p>
+                </div>
+              </div>
+              <span className="text-xs text-gray-600">→</span>
+            </Link>
           </div>
         </>
       )}

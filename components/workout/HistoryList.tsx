@@ -20,6 +20,7 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
   const [sessions, setSessions] = useState(initial);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState("");
 
   const deleteSession = async (id: string) => {
     setDeleting(id);
@@ -31,13 +32,43 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
     setDeleting(null);
   };
 
-  if (sessions.length === 0) {
-    return <p className="text-gray-500 text-sm">No sessions yet. Start your first workout!</p>;
-  }
+  const filtered = dateFilter
+    ? sessions.filter((s) => {
+        // Compare just the date portion in local time
+        const d = new Date(s.started_at);
+        const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return local === dateFilter;
+      })
+    : sessions;
 
   return (
+    <div>
+      {/* Date picker */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none [color-scheme:dark]"
+        />
+        {dateFilter && (
+          <button
+            onClick={() => setDateFilter("")}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-gray-500 text-sm">
+          {dateFilter ? "No sessions found for that date." : "No sessions yet. Start your first workout!"}
+        </p>
+      )}
+
     <div className="space-y-3">
-      {sessions.map((s) => (
+      {filtered.map((s) => (
         <Card key={s.id} padding="sm">
           <div className="flex items-start justify-between gap-3">
             {/* Session info */}
@@ -55,7 +86,10 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
                 {s.session_type === "cardio" && (
                   <span className="text-xs bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-semibold">Cardio</span>
                 )}
-                {s.plan_day === "Free Session" && s.session_type !== "cardio" && (
+                {s.session_type === "rest" && (
+                  <span className="text-xs bg-green-500/20 text-green-400 rounded px-1.5 py-0.5 font-semibold">🌿 Rest</span>
+                )}
+                {s.plan_day === "Free Session" && s.session_type !== "cardio" && s.session_type !== "rest" && (
                   <span className="text-xs bg-purple-500/20 text-purple-400 rounded px-1.5 py-0.5 font-semibold">Free</span>
                 )}
               </div>
@@ -63,7 +97,7 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
 
             {/* Action buttons */}
             <div className="flex gap-2 shrink-0">
-              {s.session_type === "cardio" ? (
+              {s.session_type === "rest" ? null : s.session_type === "cardio" ? (
                 <Link
                   href={`/workout/cardio/${s.id}/summary`}
                   className="rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-400 hover:border-gray-500 hover:text-white transition-colors"
@@ -108,6 +142,7 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
           </div>
         </Card>
       ))}
+    </div>
     </div>
   );
 }

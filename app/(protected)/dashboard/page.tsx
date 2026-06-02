@@ -99,12 +99,18 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-blue-400 mb-1">Today</p>
           <p className="text-lg font-bold">Cardio Session</p>
           <p className="text-sm text-gray-400 mt-0.5">Log your cardio workout below</p>
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <Link
               href="/workout/cardio"
-              className="block rounded-xl bg-blue-500 py-3 text-center font-semibold text-white hover:bg-blue-600 active:bg-blue-700 transition-colors"
+              className="col-span-2 block rounded-xl bg-blue-500 py-3 text-center font-semibold text-white hover:bg-blue-600 active:bg-blue-700 transition-colors"
             >
               🏃 Log Cardio
+            </Link>
+            <Link
+              href="/workout/rest"
+              className="col-span-2 block rounded-xl border border-gray-700 py-2.5 text-center text-sm font-semibold text-gray-400 hover:border-green-700 hover:text-green-400 transition-colors"
+            >
+              🌿 Rest Day
             </Link>
           </div>
         </Card>
@@ -125,6 +131,12 @@ export default async function DashboardPage() {
               className="block rounded-xl border border-gray-600 py-3 text-center text-sm font-semibold text-gray-300 hover:border-orange-500 hover:text-orange-400 transition-colors"
             >
               🏃 Cardio
+            </Link>
+            <Link
+              href="/workout/rest"
+              className="col-span-2 block rounded-xl border border-gray-700 py-2.5 text-center text-sm font-semibold text-gray-400 hover:border-green-700 hover:text-green-400 transition-colors"
+            >
+              🌿 Rest Day
             </Link>
           </div>
         </Card>
@@ -154,9 +166,15 @@ export default async function DashboardPage() {
             </Link>
             <Link
               href="/workout/free"
-              className="col-span-2 block rounded-xl border border-gray-600 py-2.5 text-center text-sm font-semibold text-gray-300 hover:border-gray-400 transition-colors"
+              className="block rounded-xl border border-gray-600 py-2.5 text-center text-sm font-semibold text-gray-300 hover:border-gray-400 transition-colors"
             >
               Free Session
+            </Link>
+            <Link
+              href="/workout/rest"
+              className="block rounded-xl border border-gray-700 py-2.5 text-center text-sm font-semibold text-gray-400 hover:border-green-700 hover:text-green-400 transition-colors"
+            >
+              🌿 Rest Day
             </Link>
           </div>
         </Card>
