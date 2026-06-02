@@ -49,6 +49,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   // Swap exercise state
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null); // muscle label being loaded
+  const [quickAddedNames, setQuickAddedNames] = useState<Set<string>>(new Set());
   // Track all exercise names seen per slot (original + every swap) so we never repeat
   const [seenExercises, setSeenExercises] = useState<Map<number, string[]>>(
     () => new Map(planDay.exercises.map((ex, i) => [i, [ex.name]]))
@@ -162,6 +163,23 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       });
       if (!res.ok) return;
       const newExercise = await res.json();
+
+      // Save to user's exercise pool for this day type so it gets rotated in future sessions
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      if (authSession) {
+        await supabase.from("user_exercise_pool").upsert({
+          user_id: authSession.user.id,
+          day_type: planDay.day_name,
+          exercise_name: newExercise.name,
+          sets: newExercise.sets ?? 3,
+          rep_range: newExercise.rep_range ?? "8-12",
+          rest_seconds: newExercise.rest_seconds ?? 60,
+          coaching_note: newExercise.coaching_note ?? "",
+        }, { onConflict: "user_id,day_type,exercise_name" });
+      }
+
+      // Track this name so the log entry gets marked user_added: true
+      setQuickAddedNames((prev) => new Set(prev).add(newExercise.name));
       setExercises((prev) => [...prev, newExercise]);
     } finally {
       setQuickAddLoading(null);
@@ -195,6 +213,14 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       next[idx] = log;
       return next;
     });
+    // If this exercise was quick-added this session, flag the log row in DB
+    if (log.exercise_name && quickAddedNames.has(log.exercise_name)) {
+      supabase
+        .from("exercise_logs")
+        .update({ user_added: true })
+        .eq("id", log.id)
+        .then(() => {});
+    }
   };
 
   // Add one more set to an exercise

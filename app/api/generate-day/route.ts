@@ -11,6 +11,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { askClaude, extractJSON } from "@/lib/claude";
 import type { PlanDay } from "@/types";
 
+export interface PoolExercise {
+  exercise_name: string;
+  sets: number;
+  rep_range: string;
+  rest_seconds: number;
+  coaching_note: string;
+}
+
 export interface GenerateDayRequest {
   day_name: string;
   muscle_focus: string;
@@ -22,6 +30,9 @@ export interface GenerateDayRequest {
   cardio_intensity?: "easy" | "moderate" | "hard";
   cardio_type?: string;
   include_core: boolean;
+  // Adaptive volume learning
+  target_exercise_count?: number;   // rolling avg from past sessions
+  pool_exercises?: PoolExercise[];  // user-added exercises to rotate in
 }
 
 export async function POST(req: NextRequest) {
@@ -38,10 +49,12 @@ export async function POST(req: NextRequest) {
       cardio_intensity = "moderate",
       cardio_type = "Any / AI Pick",
       include_core,
+      target_exercise_count,
+      pool_exercises = [],
     } = body;
 
     const equipmentList = equipment.join(", ");
-    const durationGuidance = getDurationGuidance(duration_minutes);
+    const durationGuidance = getDurationGuidance(duration_minutes, target_exercise_count);
 
     const cardioSection = include_cardio
       ? `After the main lifting exercises, add ONE cardio finisher using this spec:
@@ -55,6 +68,13 @@ export async function POST(req: NextRequest) {
     const coreSection = include_core
       ? `After the main lifting exercises (before cardio if included), add 2 core exercises (e.g. "Plank", "Dead Bug", "Ab Wheel Rollout", "Hanging Leg Raise", "Cable Crunch"). Choose based on available equipment.`
       : `No dedicated core exercises.`;
+
+    // Pool exercises the user has previously added — rotate 1-2 in naturally
+    const poolSection = pool_exercises.length > 0
+      ? `User-favourite exercises (previously added by this user for this day type, ordered by least-recently used first):
+${pool_exercises.map((p, i) => `  ${i + 1}. ${p.exercise_name} — ${p.sets} sets × ${p.rep_range} reps`).join("\n")}
+POOL RULE: Naturally include 1-2 of these exercises from the TOP of the list into the workout (prioritise those listed first as they were used least recently). They must still target ${muscle_focus}. Do not force all of them in — only include what fits the session naturally.`
+      : "";
 
     const prompt = `You are an expert strength and conditioning coach. Generate a single workout session for today.
 
@@ -74,7 +94,7 @@ Cardio rules: ${cardioSection}
 
 Core rules: ${coreSection}
 
-General rules:
+${poolSection ? poolSection + "\n\n" : ""}General rules:
 1. Only use exercises possible with the listed equipment.
 2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 75-90s rest), hypertrophy (8-15 reps, 60-75s rest), endurance (15-25 reps, 30-45s rest). MAXIMUM rest_seconds is 90 — never exceed this.
 3. Scale intensity to experience level.
@@ -117,7 +137,15 @@ Return exactly this JSON shape (a single day object):
   }
 }
 
-function getDurationGuidance(minutes: number): string {
+function getDurationGuidance(minutes: number, targetCount?: number): string {
+  // If we have a user-specific rolling average, override the count part but keep the style guidance
+  if (targetCount && targetCount >= 3) {
+    const style = minutes <= 30 ? "compound movements only, no isolation"
+      : minutes <= 45 ? "2-3 compounds + isolation moves"
+      : minutes <= 60 ? "mix of compound and isolation work"
+      : "compounds, isolation, and accessories";
+    return `Generate exactly ${targetCount} lifting exercises (${style}). This is based on the user's personal average completion rate from past sessions — match it precisely.`;
+  }
   if (minutes <= 30) {
     return `30 minutes: 3-4 exercises MAX. Compound movements only (squat, deadlift, bench, row, press, pull-up). No isolation exercises whatsoever. Short rest (45-60s). Every exercise must work multiple muscle groups.`;
   } else if (minutes <= 45) {

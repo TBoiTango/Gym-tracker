@@ -43,6 +43,15 @@ export default function WorkoutPage() {
   const [equipment, setEquipment] = useState<string[]>([]);
   const [profile, setProfile] = useState<{ experience_level: string; goal: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Adaptive volume learning
+  const [adaptiveInfo, setAdaptiveInfo] = useState<{
+    sessionCount: number;
+    avgExercises: number;
+    poolExercises: { exercise_name: string; sets: number; rep_range: string; rest_seconds: number; coaching_note: string }[];
+  } | null>(null);
+  const [adaptiveLoading, setAdaptiveLoading] = useState(false);
 
   // Persist state to sessionStorage whenever key values change
   useEffect(() => {
@@ -73,6 +82,7 @@ export default function WorkoutPage() {
         supabase.from("workout_sessions").select("plan_day").eq("user_id", session.user.id).not("completed_at", "is", null).order("started_at", { ascending: false }),
       ]);
 
+      setUserId(session.user.id);
       const planData = planRes.data?.plan_data as PlanData | undefined;
       const days = planData?.days ?? [];
       setAllDays(days);
@@ -112,6 +122,69 @@ export default function WorkoutPage() {
     load();
   }, []);
 
+  // Fetch adaptive volume data whenever the selected day changes
+  useEffect(() => {
+    if (!selectedDay || !userId) return;
+    setAdaptiveInfo(null);
+    setAdaptiveLoading(true);
+
+    (async () => {
+      try {
+        // Last 4 completed sessions for this exact day type
+        const { data: pastSessions } = await supabase
+          .from("workout_sessions")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("plan_day", selectedDay.day_name)
+          .not("completed_at", "is", null)
+          .neq("session_type", "rest")
+          .order("completed_at", { ascending: false })
+          .limit(4);
+
+        let avgExercises = 0;
+        const sessionCount = pastSessions?.length ?? 0;
+
+        if (sessionCount > 0) {
+          const ids = pastSessions!.map((s) => s.id);
+          const { data: logs } = await supabase
+            .from("exercise_logs")
+            .select("session_id, exercise_name")
+            .in("session_id", ids);
+
+          if (logs && logs.length > 0) {
+            const countsPerSession = ids.map((id) => {
+              const names = new Set(logs.filter((l) => l.session_id === id).map((l) => l.exercise_name));
+              return names.size;
+            }).filter((c) => c > 0);
+
+            if (countsPerSession.length > 0) {
+              avgExercises = Math.round(
+                countsPerSession.reduce((a, b) => a + b, 0) / countsPerSession.length
+              );
+            }
+          }
+        }
+
+        // Pool exercises for this day type, least-recently-used first
+        const { data: pool } = await supabase
+          .from("user_exercise_pool")
+          .select("exercise_name, sets, rep_range, rest_seconds, coaching_note, last_included_at")
+          .eq("user_id", userId)
+          .eq("day_type", selectedDay.day_name)
+          .order("last_included_at", { ascending: true, nullsFirst: true })
+          .limit(6);
+
+        setAdaptiveInfo({
+          sessionCount,
+          avgExercises,
+          poolExercises: pool ?? [],
+        });
+      } finally {
+        setAdaptiveLoading(false);
+      }
+    })();
+  }, [selectedDay?.day_name, userId]);
+
   const confirmDay = (day: PlanDay) => {
     setSelectedDay(day);
     setStep("options");
@@ -136,6 +209,9 @@ export default function WorkoutPage() {
         cardio_intensity: cardioIntensity,
         cardio_type: cardioType,
         include_core: includeCore,
+        // Adaptive volume params — only send if we have meaningful data
+        target_exercise_count: adaptiveInfo && adaptiveInfo.avgExercises > 0 ? adaptiveInfo.avgExercises : undefined,
+        pool_exercises: adaptiveInfo?.poolExercises ?? [],
       }),
     });
 
@@ -173,6 +249,22 @@ export default function WorkoutPage() {
       console.error(error);
       setStarting(false);
       return;
+    }
+
+    // Mark pool exercises that were included so the rotation advances next time
+    if (adaptiveInfo?.poolExercises.length) {
+      const generatedNames = new Set(generatedDay.exercises.map((e) => e.name));
+      const includedPoolNames = adaptiveInfo.poolExercises
+        .filter((p) => generatedNames.has(p.exercise_name))
+        .map((p) => p.exercise_name);
+      if (includedPoolNames.length > 0) {
+        await supabase
+          .from("user_exercise_pool")
+          .update({ last_included_at: new Date().toISOString() })
+          .eq("user_id", session.user.id)
+          .eq("day_type", generatedDay.day_name)
+          .in("exercise_name", includedPoolNames);
+      }
     }
 
     router.push(`/workout/${workoutSession.id}`);
@@ -384,6 +476,26 @@ export default function WorkoutPage() {
                 ))}
               </div>
             </div>
+
+            {/* Adaptive volume banner */}
+            {adaptiveInfo && adaptiveInfo.sessionCount > 0 && adaptiveInfo.avgExercises > 0 && (
+              <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 flex items-center gap-3">
+                <span className="text-lg shrink-0">🧠</span>
+                <p className="text-xs text-gray-300">
+                  Based on your last{" "}
+                  <span className="text-orange-400 font-semibold">{adaptiveInfo.sessionCount}</span>{" "}
+                  {selectedDay?.day_name} session{adaptiveInfo.sessionCount !== 1 ? "s" : ""}, generating{" "}
+                  <span className="text-orange-400 font-semibold">{adaptiveInfo.avgExercises} exercises</span>{" "}
+                  tailored to your volume.
+                  {adaptiveInfo.poolExercises.length > 0 && (
+                    <> Rotating in your saved favourites.</>
+                  )}
+                </p>
+              </div>
+            )}
+            {adaptiveLoading && (
+              <div className="h-12 rounded-xl bg-gray-800 animate-pulse" />
+            )}
 
             {error && <p className="text-sm text-red-400">{error}</p>}
 

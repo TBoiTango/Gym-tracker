@@ -63,6 +63,21 @@ export interface ExerciseLog {
   weight_per_set: number[];
   notes?: string;
   logged_at: string;
+  user_added?: boolean;
+}
+
+export interface UserExercisePool {
+  id: string;
+  user_id: string;
+  day_type: string;
+  exercise_name: string;
+  sets: number;
+  rep_range: string;
+  rest_seconds: number;
+  coaching_note: string;
+  times_added: number;
+  last_included_at?: string | null;
+  created_at: string;
 }
 
 export interface PlanSuggestion {
