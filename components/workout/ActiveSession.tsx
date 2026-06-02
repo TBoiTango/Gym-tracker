@@ -165,7 +165,6 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       const newExercise = await res.json();
 
       // Save to user's exercise pool for this day type so it gets rotated in future sessions
-      const { data: { session: authSession } } = await supabase.auth.getSession();
       if (authSession) {
         await supabase.from("user_exercise_pool").upsert({
           user_id: authSession.user.id,
