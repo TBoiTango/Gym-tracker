@@ -33,12 +33,25 @@ const FORMAT_STRUCTURE_RULES: Record<FreeSessionFormat, string> = {
 - Include 4-6 exercises that form one round of the circuit
 - coaching_note = describe the AMRAP duration and pacing tip`,
 
-  Hyrox: `Structure as a Hyrox-style race simulation.
-- Must follow this exact sequence: SkiErg OR Row, Sled Push, Sled Pull, Burpee Broad Jumps, Rowing OR Bike, Farmers Carry, Sandbag Lunges, Wall Balls
-- Substitute unavailable equipment with closest alternative (e.g., no sled → resistance band drag)
-- rep_range = distance or reps (e.g., "200m", "50m", "100 reps")
-- sets = 1 for each station
-- Include a 1km run equivalent between each station as a separate exercise`,
+  Hyrox: `Structure as a Hyrox TRAINING session — NOT a full race simulation.
+A full Hyrox race (8km run + 8 stations) takes 60-90 minutes for elite athletes and is not appropriate as a training session.
+Instead, build a focused training workout that develops Hyrox fitness:
+
+Choose ONE of these training formats based on duration:
+- Under 30 min: Pick 2-3 Hyrox stations + short runs. Do 2-3 rounds as a circuit.
+- 30-45 min: Pick 3-4 stations + short runs (200-400m). Do 2 rounds.
+- 45-60 min: Pick 4-5 stations + short runs (400m). Do 2 rounds or descending ladder.
+
+Hyrox stations to choose from (use what's available with the equipment):
+SkiErg (or row), Sled Push (or prowler/heavy carry), Sled Pull (or resistance band drag),
+Burpee Broad Jumps, Rowing (or bike), Farmers Carry, Sandbag Lunges (or goblet lunges),
+Wall Balls (or thruster)
+
+- Substitute unavailable equipment with closest alternative
+- rep_range = distance or reps appropriate for TRAINING volume (e.g., "100m carry", "20 reps", "200m row")
+- sets = rounds of the circuit
+- coaching_note = form cue or pacing tip specific to Hyrox competition prep
+- Include short run intervals (200-400m) between stations, labelled "Run" with rep_range = distance`,
 
   CrossFit: `Structure as an authentic CrossFit WOD. Choose one of: Chipper, Hero WOD format, Girl WOD format, or benchmark-style.
 - Mix gymnastics (pull-ups, handstand push-ups, ring dips), weightlifting (clean, snatch, deadlift, thruster), and metabolic conditioning

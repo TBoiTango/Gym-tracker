@@ -22,7 +22,7 @@ const FORMATS: {
   { id: "ForTime",  emoji: "⚡",  label: "For Time",  description: "Complete all reps as fast as possible. Race the clock." },
   { id: "Tabata",   emoji: "🔥",  label: "Tabata",    description: "20s on / 10s off × 8 rounds. Max effort every interval." },
   { id: "CrossFit", emoji: "🏋️", label: "CrossFit",  description: "Functional fitness WOD — gymnastics, lifting, and metcon" },
-  { id: "Hyrox",    emoji: "🏃",  label: "Hyrox",     description: "Race-format: runs + functional stations. No cardio machine? We adapt." },
+  { id: "Hyrox",    emoji: "🏃",  label: "Hyrox",     description: "Hyrox training — runs + 2-4 functional stations. Builds race fitness without destroying you." },
 ];
 
 const DURATIONS = [
