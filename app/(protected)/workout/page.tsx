@@ -227,7 +227,7 @@ export default function WorkoutPage() {
   };
 
   const startWorkout = async () => {
-    if (!generatedDay) return;
+    if (!generatedDay || starting) return; // guard against double-tap
     setStarting(true);
     // Clear saved state so next visit starts fresh
     try { sessionStorage.removeItem(SESSION_KEY); } catch {}
