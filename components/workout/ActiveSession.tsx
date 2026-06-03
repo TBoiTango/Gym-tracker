@@ -79,7 +79,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       const slotHistory = seenExercises.get(index) ?? [exercises[index].name];
       const otherSlotExercises = exercises.filter((_, i) => i !== index).map((e) => e.name);
       const loggedExercises = logs.map((l) => l.exercise_name);
-      const excludeExercises = [...new Set([...slotHistory, ...otherSlotExercises, ...loggedExercises])];
+      const seen = new Set<string>([...slotHistory, ...otherSlotExercises, ...loggedExercises]);
+      const excludeExercises = Array.from(seen);
 
       const res = await fetch("/api/swap-exercise", {
         method: "POST",
