@@ -9,7 +9,19 @@
  *  4. Otherwise → STRENGTH (bodyweight / unrecognised → treated as strength).
  */
 
-// ── Strength signals (take priority over everything) ─────────────────────────
+// ── Cardio overrides (checked FIRST — unambiguous cardio activities) ─────────
+// These take priority even if a strength keyword also appears in the name
+// e.g. "Rowing Machine Intervals" contains "machine" but is definitely cardio.
+
+const CARDIO_OVERRIDES = [
+  "rowing machine", "treadmill", "stationary bike", "spin bike",
+  "elliptical", "stair climber", "stairmaster", "step mill",
+  "jump rope", "skip rope", "battle ropes", "sled push", "sled pull",
+  "ski erg", "air bike", "assault bike",
+  "swimming", "running", "jogging", "cycling",
+];
+
+// ── Strength signals (take priority over everything except CARDIO_OVERRIDES) ──
 
 const STRENGTH_EQUIPMENT = [
   "barbell", "dumbbell", "cable", "machine", "smith", "ez bar", "ez-bar",
@@ -67,16 +79,19 @@ export function isStrengthExercise(name: string): boolean {
 export function isCardioExercise(name: string): boolean {
   const lower = name.toLowerCase();
 
-  // 1. Strength equipment → never cardio
+  // 1. Unambiguous cardio activities — checked first, nothing overrides these
+  if (CARDIO_OVERRIDES.some((k) => lower.includes(k))) return true;
+
+  // 2. Strength equipment → never cardio
   if (STRENGTH_EQUIPMENT.some((k) => lower.includes(k))) return false;
 
-  // 2. Strength movement → never cardio
+  // 3. Strength movement → never cardio
   if (STRENGTH_MOVEMENTS.some((k) => lower.includes(k))) return false;
 
-  // 3. Explicit cardio activity
+  // 4. Other cardio activity names
   if (CARDIO_ACTIVITIES.some((k) => lower.includes(k))) return true;
 
-  // 4. Whole-word cardio verb
+  // 5. Whole-word cardio verb (e.g. "run", "jog", "bike", "swim")
   return CARDIO_VERBS.some((k) =>
     new RegExp(`(^|[^a-z])${k}([^a-z]|$)`).test(lower)
   );
