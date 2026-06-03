@@ -204,9 +204,12 @@ export default async function DashboardPage() {
       {/* Active plan overview (split users only) */}
       {planDays.length > 0 && (
         <Card>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-            Your plan
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Your plan</p>
+            <Link href="/setup/plan?regenerate=true" className="text-xs text-orange-400 hover:underline">
+              Change split →
+            </Link>
+          </div>
           <div className="space-y-2">
             {planDays.map((day, i) => (
               <div key={i} className="flex items-center gap-3">
