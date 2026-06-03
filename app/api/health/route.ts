@@ -13,7 +13,7 @@ export const maxDuration = 30;
  *  4. API routes — each internal route responds to a minimal payload
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { runClassifierTests } from "@/lib/exercise-classifier";
 
@@ -23,7 +23,14 @@ type CheckResult = {
   detail?: string;
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Require a secret token so this endpoint can't be abused publicly
+  const token = req.nextUrl.searchParams.get("token");
+  const expected = process.env.HEALTH_CHECK_SECRET;
+  if (!expected || token !== expected) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const results: CheckResult[] = [];
 
   // ── 1. Exercise classifier ──────────────────────────────────────────────────
@@ -133,16 +140,16 @@ export async function GET() {
     });
   }
 
-  // ── 4. API route existence check ───────────────────────────────────────────
-  // We verify the route files exist at build time via the classifier import above.
-  // Server-to-server calls return 401 without a user session (auth middleware),
-  // so we just confirm the Claude lib is reachable instead.
+  // ── 4. Claude lib check (import only — no API call) ────────────────────────
   try {
-    const { askClaude } = await import("@/lib/claude");
+    const claudeModule = await import("@/lib/claude");
+    const hasAskClaude = typeof claudeModule.askClaude === "function";
     results.push({
       name: "claude_lib",
-      passed: typeof askClaude === "function",
-      detail: typeof askClaude === "function" ? "Claude lib importable" : "askClaude not a function",
+      passed: hasAskClaude,
+      detail: hasAskClaude
+        ? "Claude lib importable — API key present: " + (process.env.ANTHROPIC_API_KEY ? "yes" : "NO — missing!")
+        : "askClaude not a function",
     });
   } catch (err) {
     results.push({
