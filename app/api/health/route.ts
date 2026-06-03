@@ -52,7 +52,7 @@ export async function GET() {
 
     const expectedColumns: Record<string, string[]> = {
       profiles:          ["user_id", "name", "goal", "experience_level", "workout_duration", "include_cardio", "workout_style"],
-      workout_sessions:  ["id", "user_id", "plan_day", "muscle_focus", "started_at", "completed_at", "exercises_data", "session_type", "cardio_data"],
+      workout_sessions:  ["id", "user_id", "plan_day", "muscle_focus", "started_at", "completed_at", "exercises_data", "session_type", "cardio_data", "free_format"],
       exercise_logs:     ["id", "session_id", "exercise_name", "sets_completed", "reps_per_set", "weight_per_set", "user_added"],
       user_gyms:         ["id", "user_id", "gym_id", "equipment_list", "created_at"],
       workout_plans:     ["id", "user_id", "plan_data", "split_type", "is_active", "created_at"],
