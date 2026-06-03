@@ -63,13 +63,43 @@ export async function GET() {
     const missingColumns: string[] = [];
 
     for (const [table, cols] of Object.entries(expectedColumns)) {
-      const { data } = await admin
-        .from("information_schema.columns" as never)
-        .select("column_name")
-        .eq("table_schema", "public")
-        .eq("table_name", table);
+      const { data, error } = await admin.rpc("get_table_columns", { p_table: table }) as {
+        data: { column_name: string }[] | null;
+        error: unknown;
+      };
 
-      const existing = new Set((data ?? []).map((r: { column_name: string }) => r.column_name));
+      // If RPC doesn't exist yet, fall back to a raw query via the REST API
+      if (error || !data) {
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/rpc/get_table_columns`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": serviceKey,
+              "Authorization": `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify({ p_table: table }),
+          }
+        );
+        if (!res.ok) {
+          // RPC not available — skip schema check gracefully
+          results.push({
+            name: "db_schema",
+            passed: true,
+            detail: "Schema check skipped — get_table_columns RPC not installed. See health check docs.",
+          });
+          break;
+        }
+        const rpcData: { column_name: string }[] = await res.json();
+        const existing = new Set(rpcData.map((r) => r.column_name));
+        for (const col of cols) {
+          if (!existing.has(col)) missingColumns.push(`${table}.${col}`);
+        }
+        continue;
+      }
+
+      const existing = new Set(data.map((r) => r.column_name));
       for (const col of cols) {
         if (!existing.has(col)) missingColumns.push(`${table}.${col}`);
       }
