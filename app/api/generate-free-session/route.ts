@@ -53,10 +53,14 @@ Wall Balls (or thruster)
 - coaching_note = form cue or pacing tip specific to Hyrox competition prep
 - Include short run intervals (200-400m) between stations, labelled "Run" with rep_range = distance`,
 
-  CrossFit: `Structure as an authentic CrossFit WOD. Choose one of: Chipper, Hero WOD format, Girl WOD format, or benchmark-style.
-- Mix gymnastics (pull-ups, handstand push-ups, ring dips), weightlifting (clean, snatch, deadlift, thruster), and metabolic conditioning
-- rep_range = reps per round or total reps
-- coaching_note = describe the WOD type and scaling option`,
+  CrossFit: `Structure as an authentic CrossFit WOD. Choose one of: 3-5 round circuit, 21-15-9 couplet/triplet, Chipper, or AMRAP-style.
+- sets = number of rounds (minimum 3 — never 1). For a 21-15-9, set sets=3 and put "21-15-9" in the muscle_focus description.
+- rep_range = reps per round for each exercise (e.g. "15", "10", "5")
+- Mix compound movements: deadlifts, thrusters, cleans, squats, push press PLUS gymnastics: pull-ups, push-ups, burpees, box jumps
+- Minimum 4 exercises, maximum 6
+- rest_seconds = 0 (CrossFit is designed with minimal rest)
+- coaching_note = scaling option for the movement (e.g. "Scale: banded pull-ups or ring rows")
+- The workout should feel hard but completable — total reps across all exercises and rounds should be 100-200 reps`,
 
   ForTime: `Structure as a descending ladder, couplet, or chipper.
 - Total volume should be completable in 10-25 minutes
