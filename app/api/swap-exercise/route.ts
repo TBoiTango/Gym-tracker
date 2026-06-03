@@ -50,18 +50,25 @@ export async function POST(req: NextRequest) {
     const isQuickAdd = !exerciseName;
 
     const prompt = isQuickAdd
-      ? `You are an expert personal trainer recommending a new exercise.
+      ? `You are an expert personal trainer recommending an ADDITIONAL exercise to add to an existing session.
 
 Target muscle group: ${targetMuscle}
 Workout day focus: ${muscleFocus}
 Available equipment: ${equipmentList}
 Experience level: ${experienceLevel ?? "intermediate"}
-${excludeList ? `Do NOT suggest any of these (already in this session): "${excludeList}"` : ""}
+
+Already in this session — do NOT suggest these OR any exercise that is functionally the same movement:
+"${excludeList}"
 
 STRICT RULES:
 1. The exercise MUST train ${targetMuscle} as the PRIMARY muscle.
 2. The exercise MUST be possible with the available equipment.
-3. Choose a practical, well-known exercise suitable for the experience level.
+3. It must use a DIFFERENT movement pattern from everything already in the session.
+   - If the session has a vertical pull (lat pulldown, pull-up) → suggest a horizontal pull (row variation)
+   - If the session has a compound press → suggest an isolation or cable variation
+   - If the session has a barbell movement → consider a dumbbell or cable alternative
+   - Never suggest an exercise that is a minor variation of an existing one (e.g. if "Barbell Row" is listed, "Bent-Over Barbell Row" is NOT acceptable)
+4. The goal is to ADD genuine variety and hit the muscle from a different angle.
 
 Return ONLY valid JSON, no markdown, no explanation:
 {
