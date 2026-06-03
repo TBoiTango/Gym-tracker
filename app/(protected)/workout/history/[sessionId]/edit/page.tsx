@@ -8,18 +8,7 @@ import type { ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
-
-// Exercises that shouldn't show weight/reps inputs
-const CARDIO_KEYWORDS = [
-  "treadmill", "run", "running", "jog", "jogging", "bike", "cycling", "cycle",
-  "elliptical", "rowing", "row", "stair", "stairs", "jump rope", "skipping",
-  "cardio", "hiit", "swim", "swimming", "walk", "walking", "sprint",
-];
-
-function isCardioExercise(name: string) {
-  const lower = name.toLowerCase();
-  return CARDIO_KEYWORDS.some((k) => lower.includes(k));
-}
+import { isCardioExercise } from "@/lib/exercise-classifier";
 
 export default function EditSessionPage() {
   const router = useRouter();
