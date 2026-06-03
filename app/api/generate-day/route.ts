@@ -66,7 +66,18 @@ export async function POST(req: NextRequest) {
       : `No cardio — weights only.`;
 
     const coreSection = include_core
-      ? `After the main lifting exercises (before cardio if included), add 2 core exercises (e.g. "Plank", "Dead Bug", "Ab Wheel Rollout", "Hanging Leg Raise", "Cable Crunch"). Choose based on available equipment.`
+      ? `After the main lifting exercises (before cardio if included), add 2 core exercises.
+
+CORE SELECTION RULES:
+1. NEVER pick Ab Wheel, Ab Roller, or any rollout variation — these are overused and boring.
+2. Choose from DIFFERENT movement patterns — one from each category below:
+   - Anti-extension: Plank, Dead Bug, Hollow Body Hold, Pallof Press
+   - Flexion/weighted: Cable Crunch, Weighted Sit-Up, Decline Crunch, Bicycle Crunch
+   - Anti-rotation: Pallof Press, Woodchop, Russian Twist
+   - Hip flexion: Hanging Leg Raise, Lying Leg Raise, Dragon Flag, V-Up
+   - Lateral: Side Plank, Copenhagen Plank, Lateral Crunch
+3. Pick 2 exercises from DIFFERENT categories above — never two from the same.
+4. Choose based on available equipment.`
       : `No dedicated core exercises.`;
 
     // Pool exercises the user has previously added — rotate 1-2 in naturally

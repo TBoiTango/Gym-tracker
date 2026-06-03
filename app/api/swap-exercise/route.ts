@@ -82,7 +82,11 @@ Experience level: ${experienceLevel ?? "intermediate"}
 STRICT RULES — violating any of these is a failure:
 1. The replacement MUST train ${targetMuscle} as the PRIMARY muscle. Not secondary, not synergist — PRIMARY.
 2. Do NOT suggest any of these (already seen): "${excludeList}"
-3. Do NOT suggest exercises with different names that are functionally identical (e.g. Ab Roller and Ab Wheel are the same thing — avoid this).
+3. Do NOT suggest exercises with different names that are functionally identical. Examples of functionally identical groups — avoid suggesting anything from the same group as the original:
+   - Rollout group (ALL the same movement): Ab Wheel, Ab Roller, Barbell Rollout, Stability Ball Rollout, TRX Rollout
+   - Crunch group: Crunch, Sit-Up, Curl-Up
+   - Plank group: Plank, Front Plank, High Plank
+   If the original is ANY rollout variation, suggest something from a completely different movement pattern (e.g. Hanging Leg Raise, Cable Crunch, Dead Bug, Pallof Press).
 4. The exercise MUST be possible with the available equipment.
 5. Choose a genuinely different movement pattern (e.g. if the original is a rolling movement, suggest a weighted crunch, hanging raise, or plank variation instead).
 
