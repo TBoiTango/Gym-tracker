@@ -34,18 +34,44 @@ export async function POST(req: NextRequest) {
   try {
     const { exerciseName, muscleFocus, equipment, experienceLevel, excludeExercises = [] } = await req.json();
 
-    if (!exerciseName || !muscleFocus) {
-      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    // exerciseName may be empty string for Quick Add (muscle-only lookup)
+    if (!muscleFocus) {
+      return NextResponse.json({ error: "muscleFocus is required." }, { status: 400 });
     }
 
     const equipmentList = Array.isArray(equipment) && equipment.length
       ? equipment.join(", ")
       : "barbell, dumbbells, cable machine, pull-up bar";
 
-    const targetMuscle = inferMuscleGroup(exerciseName, muscleFocus);
-    const excludeList = [exerciseName, ...excludeExercises].join('", "');
+    const targetMuscle = inferMuscleGroup(exerciseName ?? "", muscleFocus);
+    const excludeList = [...(exerciseName ? [exerciseName] : []), ...excludeExercises].join('", "');
 
-    const prompt = `You are an expert personal trainer creating exercise substitutions.
+    // For Quick Add (no exerciseName), use a different prompt framing
+    const isQuickAdd = !exerciseName;
+
+    const prompt = isQuickAdd
+      ? `You are an expert personal trainer recommending a new exercise.
+
+Target muscle group: ${targetMuscle}
+Workout day focus: ${muscleFocus}
+Available equipment: ${equipmentList}
+Experience level: ${experienceLevel ?? "intermediate"}
+${excludeList ? `Do NOT suggest any of these (already in this session): "${excludeList}"` : ""}
+
+STRICT RULES:
+1. The exercise MUST train ${targetMuscle} as the PRIMARY muscle.
+2. The exercise MUST be possible with the available equipment.
+3. Choose a practical, well-known exercise suitable for the experience level.
+
+Return ONLY valid JSON, no markdown, no explanation:
+{
+  "name": "Exercise Name",
+  "sets": 3,
+  "rep_range": "10-15",
+  "rest_seconds": 60,
+  "coaching_note": "One practical tip for proper form."
+}`
+      : `You are an expert personal trainer creating exercise substitutions.
 
 The user wants to swap: "${exerciseName}"
 Target muscle group (MUST match exactly): ${targetMuscle}

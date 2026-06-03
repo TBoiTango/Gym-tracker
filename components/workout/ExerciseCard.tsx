@@ -25,6 +25,7 @@ const INTENSITIES = [
   { label: "Easy",     value: 1, color: "text-green-400",  border: "border-green-500",  bg: "bg-green-500/10"  },
   { label: "Moderate", value: 2, color: "text-yellow-400", border: "border-yellow-500", bg: "bg-yellow-500/10" },
   { label: "Hard",     value: 3, color: "text-red-400",    border: "border-red-500",    bg: "bg-red-500/10"    },
+  { label: "All Out",  value: 4, color: "text-purple-400", border: "border-purple-500", bg: "bg-purple-500/10" },
 ];
 
 function intensityLabel(code: number) {
@@ -65,7 +66,7 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
 
   const [intervals, setIntervals] = useState<Interval[]>(decodeIntervals);
   const [rounds, setRounds] = useState(4);
-  const [felt, setFelt] = useState<1 | 2 | 3>(2);
+  const [felt, setFelt] = useState<1 | 2 | 3 | 4>(2);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
@@ -284,9 +285,9 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
           <div className="mb-3">
             <p className="text-xs text-gray-500 mb-1">How does it feel?</p>
             <p className="text-xs text-gray-600 mb-2">Your rating adjusts the default speed and incline for your next treadmill session.</p>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-4 gap-1">
               {INTENSITIES.map((opt) => (
-                <button key={opt.value} type="button" onClick={() => setFelt(opt.value as 1 | 2 | 3)}
+                <button key={opt.value} type="button" onClick={() => setFelt(opt.value as 1 | 2 | 3 | 4)}
                   className={`rounded-lg border py-1.5 text-xs font-semibold transition-colors ${
                     felt === opt.value ? `${opt.border} ${opt.bg} ${opt.color}` : "border-gray-700 text-gray-500"
                   }`}>
