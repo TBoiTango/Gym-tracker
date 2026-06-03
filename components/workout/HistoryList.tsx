@@ -89,7 +89,15 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
                 {s.session_type === "rest" && (
                   <span className="text-xs bg-green-500/20 text-green-400 rounded px-1.5 py-0.5 font-semibold">🌿 Rest</span>
                 )}
-                {s.plan_day === "Free Session" && s.session_type !== "cardio" && s.session_type !== "rest" && (
+                {s.session_type === "free" && (
+                  <span className="text-xs bg-purple-500/20 text-purple-400 rounded px-1.5 py-0.5 font-semibold">
+                    {(s as { free_format?: string }).free_format ?? "Free"}
+                  </span>
+                )}
+                {s.session_type === "bonus" && (
+                  <span className="text-xs bg-gray-500/20 text-gray-400 rounded px-1.5 py-0.5 font-semibold">Bonus</span>
+                )}
+                {!s.session_type && s.plan_day === "Free Session" && (
                   <span className="text-xs bg-purple-500/20 text-purple-400 rounded px-1.5 py-0.5 font-semibold">Free</span>
                 )}
               </div>

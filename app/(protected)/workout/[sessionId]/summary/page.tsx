@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import type { ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
 import { isCardioExercise, isBodyweightExercise } from "@/lib/exercise-classifier";
+import FreeSessionOutcomePrompt from "@/components/workout/FreeSessionOutcomePrompt";
 
 interface Props {
   params: { sessionId: string };
@@ -21,7 +22,7 @@ export default async function SessionSummaryPage({ params }: Props) {
 
   const { data: workoutSession } = await supabase
     .from("workout_sessions")
-    .select("id, plan_day, started_at, completed_at, user_id, exercises_data")
+    .select("id, plan_day, started_at, completed_at, user_id, exercises_data, session_type, free_format")
     .eq("id", params.sessionId)
     .single();
 
@@ -179,12 +180,20 @@ export default async function SessionSummaryPage({ params }: Props) {
         </Card>
       )}
 
-      <Link
-        href="/dashboard"
-        className="block w-full rounded-xl bg-orange-500 py-4 text-center text-lg font-semibold text-white hover:bg-orange-600 transition-colors"
-      >
-        Back to Dashboard
-      </Link>
+      {/* Free session: ask if this replaced today's planned day */}
+      {(workoutSession as { session_type?: string }).session_type === "free" ? (
+        <FreeSessionOutcomePrompt
+          sessionId={params.sessionId}
+          format={(workoutSession as { free_format?: string }).free_format ?? "Free Session"}
+        />
+      ) : (
+        <Link
+          href="/dashboard"
+          className="block w-full rounded-xl bg-orange-500 py-4 text-center text-lg font-semibold text-white hover:bg-orange-600 transition-colors"
+        >
+          Back to Dashboard
+        </Link>
+      )}
     </main>
   );
 }

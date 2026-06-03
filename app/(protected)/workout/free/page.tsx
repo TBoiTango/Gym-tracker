@@ -1,50 +1,98 @@
 "use client";
 
-// Free-build session — user adds exercises manually, logs normally.
-// Shows up in history tagged as "Free Session" — doesn't affect split tracking.
-import { useState } from "react";
+// Free session — choose a format (EMOM, AMRAP, Hyrox, CrossFit, ForTime, Tabata),
+// let AI generate an authentic workout in that style, then start it.
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Exercise } from "@/types";
+import type { Exercise, PlanDay } from "@/types";
+import type { FreeSessionFormat } from "@/app/api/generate-free-session/route";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
+
+const FORMATS: {
+  id: FreeSessionFormat;
+  label: string;
+  emoji: string;
+  description: string;
+}[] = [
+  { id: "EMOM",     emoji: "⏱",  label: "EMOM",      description: "Every Minute On the Minute — complete reps, rest what's left" },
+  { id: "AMRAP",    emoji: "🔁",  label: "AMRAP",     description: "As Many Rounds As Possible in a set time cap" },
+  { id: "ForTime",  emoji: "⚡",  label: "For Time",  description: "Complete all reps as fast as possible. Race the clock." },
+  { id: "Tabata",   emoji: "🔥",  label: "Tabata",    description: "20s on / 10s off × 8 rounds. Max effort every interval." },
+  { id: "CrossFit", emoji: "🏋️", label: "CrossFit",  description: "Functional fitness WOD — gymnastics, lifting, and metcon" },
+  { id: "Hyrox",    emoji: "🏃",  label: "Hyrox",     description: "Race-format: runs + functional stations. No cardio machine? We adapt." },
+];
+
+const DURATIONS = [
+  { value: 20, label: "20 min" },
+  { value: 30, label: "30 min" },
+  { value: 45, label: "45 min" },
+  { value: 60, label: "60 min" },
+];
 
 export default function FreeSessionPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [starting, setStarting] = useState(false);
+  type Step = "pick-format" | "options" | "generating" | "preview" | "starting";
+  const [step, setStep] = useState<Step>("pick-format");
+  const [format, setFormat] = useState<FreeSessionFormat | null>(null);
+  const [duration, setDuration] = useState(30);
+  const [generatedDay, setGeneratedDay] = useState<(PlanDay & { format?: string }) | null>(null);
+  const [equipment, setEquipment] = useState<string[]>([]);
+  const [profile, setProfile] = useState<{ experience_level: string } | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Add exercise form
-  const [name, setName] = useState("");
-  const [sets, setSets] = useState(3);
-  const [repRange, setRepRange] = useState("8-12");
-  const [rest, setRest] = useState(60);
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.push("/login"); return; }
 
-  const addExercise = () => {
-    if (!name.trim()) return;
-    setExercises((prev) => [
-      ...prev,
-      { name: name.trim(), sets, rep_range: repRange, rest_seconds: rest, coaching_note: "" },
-    ]);
-    setName("");
-    setSets(3);
-    setRepRange("8-12");
-    setRest(60);
-  };
+      const [gymRes, profileRes] = await Promise.all([
+        supabase.from("user_gyms").select("equipment_list").eq("user_id", session.user.id)
+          .order("created_at", { ascending: false }).limit(1).single(),
+        supabase.from("profiles").select("experience_level").eq("user_id", session.user.id).single(),
+      ]);
 
-  const removeExercise = (i: number) => {
-    setExercises((prev) => prev.filter((_, idx) => idx !== i));
+      setEquipment(gymRes.data?.equipment_list ?? []);
+      setProfile({ experience_level: profileRes.data?.experience_level ?? "intermediate" });
+      setLoading(false);
+    })();
+  }, []);
+
+  const generate = async () => {
+    if (!format) return;
+    setStep("generating");
+    setError("");
+
+    const res = await fetch("/api/generate-free-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format,
+        equipment,
+        experience_level: profile?.experience_level ?? "intermediate",
+        duration_minutes: duration,
+      }),
+    });
+
+    if (!res.ok) {
+      setError("Could not generate workout. Try again.");
+      setStep("options");
+      return;
+    }
+
+    const day = await res.json();
+    setGeneratedDay(day);
+    setStep("preview");
   };
 
   const startSession = async () => {
-    if (exercises.length === 0) { setError("Add at least one exercise first."); return; }
-    if (starting) return;
-    setStarting(true);
-    setError("");
+    if (!generatedDay || step === "starting") return;
+    setStep("starting");
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
@@ -53,20 +101,31 @@ export default function FreeSessionPage() {
       .from("workout_sessions")
       .insert({
         user_id: session.user.id,
-        plan_day: "Free Session",
-        exercises_data: exercises,
+        plan_day: generatedDay.day_name,
+        muscle_focus: generatedDay.muscle_focus,
+        exercises_data: generatedDay.exercises,
+        session_type: "free",
+        free_format: generatedDay.format ?? format,
       })
       .select()
       .single();
 
     if (err || !workoutSession) {
       setError("Failed to start session. Try again.");
-      setStarting(false);
+      setStep("preview");
       return;
     }
 
     router.push(`/workout/${workoutSession.id}`);
   };
+
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-8">
+        <p className="text-gray-400 animate-pulse">Loading…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-lg px-4 py-8">
@@ -74,123 +133,131 @@ export default function FreeSessionPage() {
         ← Dashboard
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Free Session</h1>
-        <p className="text-sm text-gray-400 mt-1">Build your own workout from scratch. Won't affect your split.</p>
-      </div>
-
-      {/* Add exercise form */}
-      <Card className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Add Exercise</p>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">Exercise name</label>
-            <input
-              type="text"
-              placeholder="e.g. Cable Crossover"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addExercise()}
-              className="w-full rounded-xl border border-gray-600 bg-gray-800 px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500 focus:outline-none"
-            />
+      {/* ── Step 1: Pick format ──────────────────────────────────────── */}
+      {step === "pick-format" && (
+        <>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold">Free Session</h1>
+            <p className="text-sm text-gray-400 mt-1">Pick a format and we'll build an authentic workout for you.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-gray-500 mb-2 block">Sets</label>
-              <div className="flex items-center gap-2">
-                <StepBtn onClick={() => setSets((s) => Math.max(1, s - 1))}>−</StepBtn>
-                <span className="flex-1 text-center text-lg font-bold">{sets}</span>
-                <StepBtn onClick={() => setSets((s) => s + 1)}>+</StepBtn>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Rep range</label>
-              <input
-                type="text"
-                value={repRange}
-                onChange={(e) => setRepRange(e.target.value)}
-                className="w-full rounded-xl border border-gray-600 bg-gray-800 px-3 py-2.5 text-white text-center focus:border-orange-500 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-gray-500 mb-2 block">Rest — {rest}s</label>
-            <div className="flex items-center gap-2">
-              <StepBtn onClick={() => setRest((r) => Math.max(15, r - 15))}>−</StepBtn>
-              <div className="flex-1 h-2 bg-gray-800 rounded-full">
-                <div
-                  className="h-2 rounded-full bg-orange-500 transition-all"
-                  style={{ width: `${((rest - 15) / (90 - 15)) * 100}%` }}
-                />
-              </div>
-              <StepBtn onClick={() => setRest((r) => Math.min(90, r + 15))}>+</StepBtn>
-            </div>
-          </div>
-
-          <button
-            onClick={addExercise}
-            disabled={!name.trim()}
-            className="w-full rounded-xl border border-dashed border-orange-500/50 py-3 text-sm font-semibold text-orange-400 hover:bg-orange-500/10 disabled:opacity-40 transition-colors"
-          >
-            + Add to Session
-          </button>
-        </div>
-      </Card>
-
-      {/* Exercise list */}
-      {exercises.length > 0 && (
-        <div className="space-y-2 mb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
-            Your session ({exercises.length} exercise{exercises.length !== 1 ? "s" : ""})
-          </p>
-          {exercises.map((ex, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3">
-              <div className="flex-1">
-                <p className="font-semibold text-sm">{ex.name}</p>
-                <p className="text-xs text-gray-500">{ex.sets} sets · {ex.rep_range} reps · {ex.rest_seconds}s rest</p>
-              </div>
+          <div className="space-y-2">
+            {FORMATS.map((f) => (
               <button
-                onClick={() => removeExercise(i)}
-                className="text-gray-600 hover:text-red-400 transition-colors text-lg"
+                key={f.id}
+                onClick={() => { setFormat(f.id); setStep("options"); }}
+                className="w-full rounded-xl border border-gray-700 bg-gray-900 p-4 text-left hover:border-orange-500 transition-colors"
               >
-                ✕
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{f.emoji}</span>
+                  <div>
+                    <p className="font-bold">{f.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{f.description}</p>
+                  </div>
+                </div>
               </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Step 2: Options ──────────────────────────────────────────── */}
+      {(step === "options" || step === "generating") && format && (
+        <>
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">
+                {FORMATS.find((f) => f.id === format)?.emoji}{" "}
+                {FORMATS.find((f) => f.id === format)?.label}
+              </h1>
+              <p className="text-sm text-gray-400 mt-1">
+                {FORMATS.find((f) => f.id === format)?.description}
+              </p>
             </div>
-          ))}
-        </div>
+            <button
+              onClick={() => setStep("pick-format")}
+              className="text-sm text-orange-400 hover:underline shrink-0 mt-1"
+            >
+              Change
+            </button>
+          </div>
+
+          {/* Duration — skip for Hyrox (fixed length) */}
+          {format !== "Hyrox" && (
+            <div className="mb-6">
+              <p className="text-sm font-medium text-gray-300 mb-3">⏱ How long?</p>
+              <div className="grid grid-cols-4 gap-2">
+                {DURATIONS.map((d) => (
+                  <button
+                    key={d.value}
+                    onClick={() => setDuration(d.value)}
+                    className={`rounded-xl border p-3 text-center transition-colors ${
+                      duration === d.value
+                        ? "border-orange-500 bg-orange-500/10 text-white"
+                        : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-500"
+                    }`}
+                  >
+                    <p className="font-bold text-sm">{d.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+
+          <Button onClick={generate} loading={step === "generating"} className="w-full text-lg py-4">
+            {step === "generating" ? "Building your workout…" : "Generate Workout"}
+          </Button>
+        </>
       )}
 
-      {exercises.length === 0 && (
-        <div className="text-center py-12 text-gray-600">
-          <p className="text-4xl mb-3">🏋️</p>
-          <p className="text-sm">Add your first exercise above</p>
-        </div>
+      {/* ── Step 3: Preview ──────────────────────────────────────────── */}
+      {(step === "preview" || step === "starting") && generatedDay && (
+        <>
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold bg-orange-500/20 text-orange-400 rounded-full px-2 py-0.5">
+                  {format}
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold">{generatedDay.day_name}</h1>
+              <p className="text-sm text-gray-400 mt-0.5">{generatedDay.muscle_focus}</p>
+            </div>
+            <button
+              onClick={() => setStep("options")}
+              className="text-sm text-orange-400 hover:underline shrink-0 mt-1"
+            >
+              ← Regenerate
+            </button>
+          </div>
+
+          <div className="space-y-3 mb-8">
+            {generatedDay.exercises.map((ex: Exercise, i: number) => (
+              <Card key={i} padding="sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <p className="font-semibold">{ex.name}</p>
+                    <p className="text-sm text-gray-400">
+                      {ex.sets} sets × {ex.rep_range}
+                      {ex.rest_seconds > 0 ? ` · ${ex.rest_seconds}s rest` : " · no rest"}
+                    </p>
+                    {ex.coaching_note && (
+                      <p className="text-xs text-gray-500 mt-1 italic">{ex.coaching_note}</p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-600 font-mono pt-0.5">#{i + 1}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <Button onClick={startSession} loading={step === "starting"} className="w-full text-lg py-4">
+            Start Session 💪
+          </Button>
+        </>
       )}
-
-      {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
-
-      <Button
-        onClick={startSession}
-        loading={starting}
-        className="w-full text-lg py-4"
-      >
-        Start Free Session 💪
-      </Button>
     </main>
-  );
-}
-
-function StepBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-700 bg-gray-800 text-lg font-bold text-white hover:bg-gray-700 transition-colors"
-    >
-      {children}
-    </button>
   );
 }

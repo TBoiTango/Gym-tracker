@@ -26,7 +26,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from("workout_sessions")
-      .select("id, plan_day, started_at, completed_at")
+      .select("id, plan_day, started_at, completed_at, session_type")
       .eq("user_id", userId)
       .order("started_at", { ascending: false })
       .limit(30),
@@ -60,8 +60,13 @@ export default async function DashboardPage() {
     : [];
   const weeklyTarget = planDays.length > 0 ? Math.min(planDays.length, 7) : 5;
 
-  // Determine today's planned workout day using a simple rotation (split users only)
-  const completedSessions = sessions.filter((s) => s.completed_at);
+  // Determine today's planned workout day using a simple rotation (split users only).
+  // Exclude rest days and bonus sessions — they don't advance the split.
+  const completedSessions = sessions.filter(
+    (s) => s.completed_at &&
+    (s as { session_type?: string }).session_type !== "rest" &&
+    (s as { session_type?: string }).session_type !== "bonus"
+  );
   const todayIndex = planDays.length > 0 ? completedSessions.length % planDays.length : 0;
   const todayPlan = planDays[todayIndex] ?? null;
 
