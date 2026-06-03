@@ -111,6 +111,11 @@ ${poolSection ? poolSection + "\n\n" : ""}General rules:
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
 5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
+6. EQUIPMENT VARIETY — this is mandatory, not optional:
+   - A workout should NEVER be all barbell movements. Maximum 1-2 barbell exercises per session.
+   - Spread across equipment: barbell for 1 compound lift, dumbbells for isolation/unilateral work, cables for constant tension, machines for stability, bodyweight for finishers.
+   - Example of a good Push Day: Barbell Bench Press → Dumbbell Shoulder Press → Cable Lateral Raise → Dumbbell Tricep Kickback → Machine Chest Fly. NOT: Barbell Bench → Barbell OHP → Barbell Incline → Barbell Skull Crusher.
+   - If the user only has barbells, then barbell-only is fine. Otherwise always mix.
 
 Return exactly this JSON shape (a single day object):
 {
