@@ -95,7 +95,11 @@ STRICT RULES — violating any of these is a failure:
    - Plank group: Plank, Front Plank, High Plank
    If the original is ANY rollout variation, suggest something from a completely different movement pattern (e.g. Hanging Leg Raise, Cable Crunch, Dead Bug, Pallof Press).
 4. The exercise MUST be possible with the available equipment.
-5. Choose a genuinely different movement pattern (e.g. if the original is a rolling movement, suggest a weighted crunch, hanging raise, or plank variation instead).
+5. Choose a genuinely different movement pattern AND feel free to use completely different equipment — the goal is to hit the same muscle from a fresh angle. Examples:
+   - Incline Barbell Bench → Cable Low-to-High Fly (same upper chest, totally different stimulus)
+   - Barbell Row → Single-Arm Dumbbell Row or Cable Seated Row
+   - Barbell Curl → Incline Dumbbell Curl or Cable Curl
+   Do NOT just swap barbell for dumbbell doing the exact same motion. Find a different angle, grip, or movement pattern.
 
 Return ONLY valid JSON, no markdown, no explanation:
 {
