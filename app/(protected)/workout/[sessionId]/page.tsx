@@ -15,7 +15,7 @@ export default async function ActiveSessionPage({ params }: Props) {
 
   const { data: workoutSession } = await supabase
     .from("workout_sessions")
-    .select("id, plan_day, completed_at, user_id, exercises_data")
+    .select("id, plan_day, muscle_focus, completed_at, user_id, exercises_data")
     .eq("id", params.sessionId)
     .single();
 
@@ -32,7 +32,7 @@ export default async function ActiveSessionPage({ params }: Props) {
 
   const planDay: PlanDay = {
     day_name: workoutSession.plan_day,
-    muscle_focus: "",
+    muscle_focus: (workoutSession as { muscle_focus?: string }).muscle_focus ?? "",
     exercises,
   };
 

@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Exercise, ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
 import RestTimer from "@/components/workout/RestTimer";
+import { isCardioExercise, isTreadmillExercise } from "@/lib/exercise-classifier";
 
 interface Props {
   exercise: Exercise;
@@ -18,67 +19,7 @@ interface Props {
 }
 
 const MAX_REST = 90;
-
-// ── Exercise classification ───────────────────────────────────────────────────
-//
-// RULE: Strength equipment/movements ALWAYS win. A "Cable Row" or
-// "Barbell Pendlay Row" must never be tagged as cardio even though the
-// word "row" appears. We check for strength signals first; if any match
-// we return false immediately without even looking at cardio keywords.
-
-/** Any name containing these words is STRENGTH, full stop. */
-const STRENGTH_EQUIPMENT = [
-  "barbell", "dumbbell", "cable", "machine", "smith", "ez bar", "ez-bar",
-  "trap bar", "hex bar", "kettlebell", "resistance band", "band",
-];
-
-const STRENGTH_MOVEMENTS = [
-  "bench press", "squat", "deadlift", "lunge", "press", "curl",
-  "extension", "raise", "shrug", "dip", "push-up", "push up", "pull-up",
-  "pull up", "chin-up", "chin up", "row", "pendlay", "romanian",
-  "nordic", "bulgarian", "rdl", "hack", "incline", "decline",
-];
-
-/**
- * Exact cardio activity names — must match as a substring but only after
- * strength signals have been ruled out.
- */
-const CARDIO_ACTIVITIES = [
-  "treadmill", "rowing machine", "stationary bike", "spin bike",
-  "elliptical", "stair climber", "stairmaster", "step mill",
-  "jump rope", "skip", "swimming", "pool", "running track",
-  "battle ropes", "sled push", "sled pull", "ski erg", "air bike",
-  "assault bike", "cardio", "hiit",
-];
-
-/** Whole-word cardio verbs — must appear as isolated words. */
-const CARDIO_VERBS = ["run", "jog", "bike", "swim", "walk", "sprint", "cycle"];
-
-function isCardioExercise(name: string): boolean {
-  const lower = name.toLowerCase();
-
-  // 1. Strength equipment → definitely NOT cardio
-  if (STRENGTH_EQUIPMENT.some((k) => lower.includes(k))) return false;
-
-  // 2. Strength movement patterns → definitely NOT cardio
-  if (STRENGTH_MOVEMENTS.some((k) => lower.includes(k))) return false;
-
-  // 3. Must explicitly match a cardio activity or verb
-  if (CARDIO_ACTIVITIES.some((k) => lower.includes(k))) return true;
-
-  // 4. Whole-word cardio verb check
-  return CARDIO_VERBS.some((k) => new RegExp(`(^|[^a-z])${k}([^a-z]|$)`).test(lower));
-}
-
-/** Treadmill-specific interval UI — check before generic cardio check. */
-const TREADMILL_KEYWORDS = [
-  "treadmill", "treadmill run", "treadmill walk", "treadmill intervals",
-];
-
-function isTreadmillExercise(name: string): boolean {
-  const lower = name.toLowerCase();
-  return TREADMILL_KEYWORDS.some((k) => lower.includes(k));
-}
+// isCardioExercise and isTreadmillExercise imported from @/lib/exercise-classifier
 
 const INTENSITIES = [
   { label: "Easy",     value: 1, color: "text-green-400",  border: "border-green-500",  bg: "bg-green-500/10"  },

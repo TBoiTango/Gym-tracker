@@ -72,7 +72,14 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         equipment = (userGym?.equipment_list as string[]) ?? [];
       }
 
-      const excludeExercises = seenExercises.get(index) ?? [exercises[index].name];
+      // Build exclusion list:
+      // 1. Everything ever tried in this slot (prevents cycling back)
+      // 2. Everything currently in OTHER slots (prevents duplicating an existing exercise)
+      // 3. Everything already logged this session (prevents swapping to a completed exercise)
+      const slotHistory = seenExercises.get(index) ?? [exercises[index].name];
+      const otherSlotExercises = exercises.filter((_, i) => i !== index).map((e) => e.name);
+      const loggedExercises = logs.map((l) => l.exercise_name);
+      const excludeExercises = [...new Set([...slotHistory, ...otherSlotExercises, ...loggedExercises])];
 
       const res = await fetch("/api/swap-exercise", {
         method: "POST",
@@ -191,9 +198,19 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   const confirmSkip = (reason: string) => {
     if (skipIndex === null) return;
-    setExercises((prev) => prev.filter((_, i) => i !== skipIndex));
+    const removedAt = skipIndex;
+    setExercises((prev) => prev.filter((_, i) => i !== removedAt));
+    // Shift seenExercises indices down to match the new exercise array positions
+    setSeenExercises((prev) => {
+      const next = new Map<number, string[]>();
+      prev.forEach((val, key) => {
+        if (key < removedAt) next.set(key, val);
+        else if (key > removedAt) next.set(key - 1, val);
+        // key === removedAt: dropped
+      });
+      return next;
+    });
     setSkipIndex(null);
-    console.log(`Skipped exercise: ${reason}`);
   };
 
   // Add exercise modal state
@@ -281,6 +298,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   };
 
   const finishWorkout = async () => {
+    if (finishing) return;
     setFinishing(true);
     await supabase
       .from("workout_sessions")

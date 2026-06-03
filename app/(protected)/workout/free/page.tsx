@@ -42,6 +42,7 @@ export default function FreeSessionPage() {
 
   const startSession = async () => {
     if (exercises.length === 0) { setError("Add at least one exercise first."); return; }
+    if (starting) return;
     setStarting(true);
     setError("");
 

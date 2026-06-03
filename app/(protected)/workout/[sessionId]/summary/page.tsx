@@ -4,37 +4,15 @@ import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
 import type { ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
+import { isCardioExercise, isBodyweightExercise } from "@/lib/exercise-classifier";
 
 interface Props {
   params: { sessionId: string };
 }
 
-// Exercises that are bodyweight — don't count lbs toward volume
-const BODYWEIGHT_KEYWORDS = [
-  "pull-up", "pull up", "pullup", "chin-up", "chin up", "chinup",
-  "dip", "push-up", "push up", "pushup", "bodyweight", "body weight",
-  "hanging", "inverted row", "muscle-up", "muscle up",
-  "pistol squat", "nordic", "glute bridge", "hip thrust",
-  "plank", "dead bug", "ab wheel", "leg raise", "sit-up", "sit up",
-  "crunch", "mountain climber", "burpee",
-];
-
-// Cardio keywords — show time/distance, not lbs
-const CARDIO_KEYWORDS = [
-  "treadmill", "rowing", "rower", "bike", "cycling", "elliptical",
-  "stair", "jump rope", "battle rope", "sprint", "run", "jog",
-  "cardio", "intervals",
-];
-
-function isBodyweight(name: string) {
-  const lower = name.toLowerCase();
-  return BODYWEIGHT_KEYWORDS.some((kw) => lower.includes(kw));
-}
-
-function isCardio(name: string) {
-  const lower = name.toLowerCase();
-  return CARDIO_KEYWORDS.some((kw) => lower.includes(kw));
-}
+// Aliases for readability in this file
+const isBodyweight = isBodyweightExercise;
+const isCardio = isCardioExercise;
 
 export default async function SessionSummaryPage({ params }: Props) {
   const supabase = createServerClient();

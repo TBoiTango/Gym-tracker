@@ -240,6 +240,7 @@ export default function WorkoutPage() {
       .insert({
         user_id: session.user.id,
         plan_day: generatedDay.day_name,
+        muscle_focus: generatedDay.muscle_focus,
         exercises_data: generatedDay.exercises,
       })
       .select()
