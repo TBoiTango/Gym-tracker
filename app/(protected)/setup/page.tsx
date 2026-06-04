@@ -50,10 +50,9 @@ export default function SetupProfilePage() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { router.push("/login"); return; }
 
-    // Use update() not upsert() — the DB trigger guarantees the profile row
-    // already exists. upsert() without onConflict creates duplicate rows when
-    // the trigger has already inserted one, causing dashboard queries to break.
-    const { error } = await supabase
+    // Try update first (trigger should have created the row).
+    // If no row exists yet (trigger not fired), fall back to upsert with explicit onConflict.
+    const { count, error: updateError } = await supabase
       .from("profiles")
       .update({
         name: name.trim(),
@@ -62,9 +61,25 @@ export default function SetupProfilePage() {
         workout_duration: duration,
         include_cardio: includeCardio,
       })
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .select("user_id", { count: "exact", head: true });
 
-    if (error) { setError(error.message); setLoading(false); return; }
+    if (updateError) { setError(updateError.message); setLoading(false); return; }
+
+    // If update hit 0 rows, the trigger didn't fire — insert the profile now
+    if (!count || count === 0) {
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .upsert({
+          user_id: user.id,
+          name: name.trim(),
+          goal,
+          experience_level: level,
+          workout_duration: duration,
+          include_cardio: includeCardio,
+        }, { onConflict: "user_id" });
+      if (insertError) { setError(insertError.message); setLoading(false); return; }
+    }
 
     router.push("/setup/gym");
   };
