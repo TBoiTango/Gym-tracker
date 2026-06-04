@@ -50,36 +50,32 @@ export default function SetupProfilePage() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { router.push("/login"); return; }
 
-    // Try update first (trigger should have created the row).
-    // If no row exists yet (trigger not fired), fall back to upsert with explicit onConflict.
-    const { count, error: updateError } = await supabase
+    // Check if profile row exists first, then update or insert accordingly.
+    // The DB trigger should have created the row, but fall back to insert if not.
+    const { data: existing } = await supabase
       .from("profiles")
-      .update({
-        name: name.trim(),
-        goal,
-        experience_level: level,
-        workout_duration: duration,
-        include_cardio: includeCardio,
-      })
+      .select("user_id")
       .eq("user_id", user.id)
-      .select("user_id", { count: "exact", head: true });
+      .maybeSingle();
 
-    if (updateError) { setError(updateError.message); setLoading(false); return; }
+    const payload = {
+      name: name.trim(),
+      goal,
+      experience_level: level,
+      workout_duration: duration,
+      include_cardio: includeCardio,
+    };
 
-    // If update hit 0 rows, the trigger didn't fire — insert the profile now
-    if (!count || count === 0) {
-      const { error: insertError } = await supabase
-        .from("profiles")
-        .upsert({
-          user_id: user.id,
-          name: name.trim(),
-          goal,
-          experience_level: level,
-          workout_duration: duration,
-          include_cardio: includeCardio,
-        }, { onConflict: "user_id" });
-      if (insertError) { setError(insertError.message); setLoading(false); return; }
+    let saveError;
+    if (existing) {
+      const { error } = await supabase.from("profiles").update(payload).eq("user_id", user.id);
+      saveError = error;
+    } else {
+      const { error } = await supabase.from("profiles").insert({ user_id: user.id, ...payload });
+      saveError = error;
     }
+
+    if (saveError) { setError(saveError.message); setLoading(false); return; }
 
     router.push("/setup/gym");
   };
