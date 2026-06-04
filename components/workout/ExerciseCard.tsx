@@ -450,6 +450,36 @@ export default function ExerciseCard(props: Props) {
   const [saveError, setSaveError] = useState("");
   const [showTimer, setShowTimer] = useState(false);
   const [restSeconds, setRestSeconds] = useState(0);
+  const [lastSessionNote, setLastSessionNote] = useState<string | null>(null);
+
+  // On mount, fetch the last logged weight/reps for this exercise from a previous session
+  useEffect(() => {
+    if (existingLog) return; // already have data for this session
+    (async () => {
+      const { data: lastLog } = await supabase
+        .from("exercise_logs")
+        .select("weight_per_set, reps_per_set, sets_completed")
+        .eq("exercise_name", exercise.name)
+        .neq("session_id", sessionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!lastLog || !lastLog.weight_per_set?.length) return;
+
+      const lastWeight = (lastLog.weight_per_set as number[]).slice(-1)[0];
+      const lastReps = (lastLog.reps_per_set as number[]).slice(-1)[0];
+
+      if (lastWeight > 0) {
+        setWeight(lastWeight);
+        setWeightInput(String(lastWeight));
+        setLastSessionNote(`Last time: ${lastWeight} lbs × ${lastReps} reps`);
+      }
+      if (lastReps > 0) {
+        setReps(lastReps);
+      }
+    })();
+  }, []);
 
   const setsLogged = existingLog?.sets_completed ?? 0;
   const targetSets = exercise.sets;
@@ -529,9 +559,12 @@ export default function ExerciseCard(props: Props) {
         </span>
       </div>
 
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-gray-500 mb-1">
         Target: {exercise.sets} × {exercise.rep_range} reps · {Math.min(exercise.rest_seconds, MAX_REST)}s rest
       </p>
+      {lastSessionNote && (
+        <p className="text-xs text-orange-400/70 mb-3">📊 {lastSessionNote}</p>
+      )}
 
       {existingLog && existingLog.reps_per_set.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
