@@ -19,7 +19,7 @@ export default function SignupForm() {
     setError("");
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
       setError(error.message);
@@ -27,16 +27,9 @@ export default function SignupForm() {
       return;
     }
 
-    // Create a placeholder profile row for the new user.
-    // We do this here instead of a DB trigger to avoid auth-level permission issues.
-    if (data.user) {
-      await supabase.from("profiles").upsert({
-        user_id: data.user.id,
-        name: "",
-        experience_level: "beginner",
-        goal: "strength",
-      });
-    }
+    // Profile row is created automatically by a Supabase database trigger
+    // (handle_new_user) the instant the auth.users record is created.
+    // Do NOT insert here — it races against the auth commit and causes FK errors.
 
     // After signup, show the welcome/onboarding screen before setup.
     router.push("/welcome");

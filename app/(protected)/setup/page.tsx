@@ -45,13 +45,15 @@ export default function SetupProfilePage() {
     setLoading(true);
     setError("");
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.push("/login"); return; }
+    // Use getUser() not getSession() — getUser() verifies with the server,
+    // getSession() only reads local storage and can be stale after email confirmation.
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) { router.push("/login"); return; }
 
     const { error } = await supabase
       .from("profiles")
       .upsert({
-        user_id: session.user.id,
+        user_id: user.id,
         name: name.trim(),
         goal,
         experience_level: level,
