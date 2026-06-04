@@ -11,20 +11,32 @@ import { askClaude, extractJSON } from "@/lib/claude";
 function inferMuscleGroup(exerciseName: string, dayFocus: string): string {
   const name = exerciseName.toLowerCase();
 
-  if (/ab|core|crunch|plank|sit.?up|leg raise|oblique|wheel|roller|russian twist|hollow/.test(name))
+  // Check abs/core FIRST and most broadly — before anything else
+  // "Hanging Leg Raise", "Dead Bug", "Copenhagen Plank" etc. must all land here
+  if (/\bab\b|abdominal|core|crunch|sit.?up|leg raise|oblique|wheel|roller|russian twist|hollow|dead bug|bird.?dog|pallof|woodchop|copenhagen/.test(name))
     return "abs and core";
-  if (/chest|bench|fly|pec|push.?up|dip/.test(name))
+  if (/plank/.test(name))
+    return "abs and core";
+  if (/chest|bench|fly|pec|push.?up/.test(name))
     return "chest";
   if (/bicep|curl|hammer|preacher/.test(name))
     return "biceps";
-  if (/tricep|skull|pushdown|overhead ext|dip/.test(name))
+  if (/tricep|skull|pushdown|overhead ext/.test(name))
     return "triceps";
-  if (/shoulder|delt|press|lateral raise|front raise|face pull|upright row/.test(name))
+  // dip only maps to triceps if not chest-dip context
+  if (/\bdip\b/.test(name))
+    return name.includes("chest") ? "chest" : "triceps";
+  if (/shoulder|delt|lateral raise|front raise|face pull|upright row/.test(name))
     return "shoulders";
-  if (/back|row|pull|lat|deadlift|shrug|rhomboid/.test(name) && !/ab/.test(name))
+  // press alone → check context (not bench/incline which is chest)
+  if (/\bpress\b/.test(name) && !/bench|incline|decline|chest|pec/.test(name))
+    return "shoulders";
+  if (/back|bent.?over|row|lat\b|pulldown|deadlift|shrug|rhomboid|pull.?up|chin.?up/.test(name))
     return "back";
-  if (/squat|leg press|lunge|quad|hamstring|glute|hip|rdl|leg curl|leg ext|calf/.test(name))
+  if (/squat|leg press|lunge|quad|hamstring|glute|hip thrust|rdl|romanian|leg curl|leg ext|calf|nordic/.test(name))
     return "legs";
+  if (/hanging/.test(name))
+    return "abs and core"; // hanging anything is almost always abs
 
   // Fall back to the day's muscle focus
   return dayFocus;
@@ -86,8 +98,10 @@ Workout day focus: ${muscleFocus}
 Available equipment: ${equipmentList}
 Experience level: ${experienceLevel ?? "intermediate"}
 
-STRICT RULES — violating any of these is a failure:
+STRICT RULES — violating any of these is an automatic failure. There are no exceptions:
 1. The replacement MUST train ${targetMuscle} as the PRIMARY muscle. Not secondary, not synergist — PRIMARY.
+   If targetMuscle is "abs and core" → the exercise must be a direct ab/core exercise (crunch, leg raise, plank variation, cable crunch, etc.). A back exercise, leg exercise, or anything else is WRONG.
+   If you are unsure whether an exercise targets ${targetMuscle} primarily — do not suggest it.
 2. Do NOT suggest any of these (already seen): "${excludeList}"
 3. Do NOT suggest exercises with different names that are functionally identical. Examples of functionally identical groups — avoid suggesting anything from the same group as the original:
    - Rollout group (ALL the same movement): Ab Wheel, Ab Roller, Barbell Rollout, Stability Ball Rollout, TRX Rollout
