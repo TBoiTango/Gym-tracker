@@ -130,14 +130,16 @@ export default function WorkoutPage() {
 
     (async () => {
       try {
-        // Last 4 completed sessions for this exact day type
+        // Last 4 completed sessions for this exact day type.
+        // Use .or() to include NULL session_type (regular workouts) since
+        // .neq("session_type", "rest") silently excludes NULLs in SQL.
         const { data: pastSessions } = await supabase
           .from("workout_sessions")
           .select("id")
           .eq("user_id", userId)
           .eq("plan_day", selectedDay.day_name)
           .not("completed_at", "is", null)
-          .neq("session_type", "rest")
+          .or("session_type.is.null,session_type.eq.workout,session_type.eq.free")
           .order("completed_at", { ascending: false })
           .limit(4);
 
