@@ -164,15 +164,32 @@ export default async function SessionSummaryPage({ params }: Props) {
           </p>
           <div className="space-y-2">
             {cardioExercises.map((log) => {
-              const mins = (log.reps_per_set as number[])[0];
-              const intensityCode = (log.weight_per_set as number[])[0];
-              const intensityName = intensityCode === 1 ? "Easy" : intensityCode === 3 ? "Hard" : "Moderate";
+              const reps = log.reps_per_set as number[];
+              const weights = log.weight_per_set as number[];
+
+              // Treadmill/interval: reps_per_set = durations in SECONDS per interval,
+              // sets_completed = rounds. Total = sum(durations) × rounds.
+              // Generic cardio: reps_per_set[0] = duration in MINUTES, weight[0] = intensity code.
+              const isInterval = log.sets_completed > 1 || (reps.length > 1);
+              let display = "";
+
+              if (isInterval) {
+                const totalSecs = reps.reduce((a, b) => a + b, 0) * log.sets_completed;
+                const totalMins = Math.round(totalSecs / 60);
+                display = `${totalMins} min · ${log.sets_completed} round${log.sets_completed !== 1 ? "s" : ""}`;
+              } else {
+                const mins = reps[0];
+                const intensityCode = weights[0];
+                const intensityName = intensityCode === 1 ? "Easy" : intensityCode === 3 ? "Hard" : intensityCode === 4 ? "All Out" : "Moderate";
+                // If mins is large (>60) it was stored in seconds by mistake — convert
+                const displayMins = mins > 200 ? Math.round(mins / 60) : mins;
+                display = displayMins ? `${displayMins} min · ${intensityName}` : `${log.sets_completed} set`;
+              }
+
               return (
                 <div key={log.id} className="flex justify-between text-sm">
                   <span className="font-medium">{log.exercise_name}</span>
-                  <span className="text-gray-400">
-                    {mins ? `${mins} min · ${intensityName}` : `${log.sets_completed} set`}
-                  </span>
+                  <span className="text-gray-400">{display}</span>
                 </div>
               );
             })}

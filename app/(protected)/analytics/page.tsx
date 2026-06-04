@@ -6,6 +6,7 @@ import type { ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
 import VolumeChart from "@/components/analytics/VolumeChart";
 import PRList from "@/components/analytics/PRList";
+import { isCardioExercise, isTreadmillExercise } from "@/lib/exercise-classifier";
 
 export default async function AnalyticsPage() {
   const supabase = createServerClient();
@@ -34,14 +35,31 @@ export default async function AnalyticsPage() {
   // ── Stats ────────────────────────────────────────────────────────────────
   const totalSessions = completedSessions.length;
 
-  const totalVolume = exerciseLogs.reduce((sum, log) => {
+  // Separate cardio from lifting logs
+  const cardioLogs = exerciseLogs.filter((l) => isCardioExercise(l.exercise_name));
+  const liftingLogs = exerciseLogs.filter((l) => !isCardioExercise(l.exercise_name));
+
+  const totalVolume = liftingLogs.reduce((sum, log) => {
     for (let i = 0; i < log.sets_completed; i++) {
       sum += (log.weight_per_set[i] ?? 0) * (log.reps_per_set[i] ?? 0);
     }
     return sum;
   }, 0);
 
-  const totalSets = exerciseLogs.reduce((sum, log) => sum + log.sets_completed, 0);
+  const totalSets = liftingLogs.reduce((sum, log) => sum + log.sets_completed, 0);
+
+  // Total cardio time in minutes
+  const totalCardioMins = cardioLogs.reduce((sum, log) => {
+    const reps = log.reps_per_set as number[];
+    if (isTreadmillExercise(log.exercise_name) || reps.length > 1 || log.sets_completed > 1) {
+      // Interval: reps = seconds per interval, sets_completed = rounds
+      return sum + Math.round(reps.reduce((a, b) => a + b, 0) * log.sets_completed / 60);
+    }
+    // Generic cardio: reps[0] = minutes
+    return sum + (reps[0] ?? 0);
+  }, 0);
+
+  const cardioSessionCount = new Set(cardioLogs.map((l) => l.session_id)).size;
 
   // Best lift (highest single weight logged) per exercise
   const prMap = new Map<string, number>();
@@ -79,11 +97,53 @@ export default async function AnalyticsPage() {
       <h1 className="text-2xl font-bold">Your Progress 📊</h1>
 
       {/* Top stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <StatCard label="Workouts" value={String(totalSessions)} />
         <StatCard label="Total Sets" value={String(totalSets)} />
-        <StatCard label="Total Volume" value={`${Math.round(totalVolume / 1000)}k lbs`} />
+        <StatCard label="Lifting Volume" value={totalVolume > 1000 ? `${Math.round(totalVolume / 1000)}k lbs` : `${Math.round(totalVolume)} lbs`} />
+        <StatCard label="Cardio Sessions" value={String(cardioSessionCount)} />
       </div>
+
+      {/* Cardio summary */}
+      {totalCardioMins > 0 && (
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">🏃 Cardio Summary</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{totalCardioMins >= 60 ? `${Math.floor(totalCardioMins / 60)}h ${totalCardioMins % 60}m` : `${totalCardioMins}m`}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Total cardio time</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold">{cardioSessionCount}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Cardio sessions</p>
+            </div>
+          </div>
+          {/* Cardio breakdown by type */}
+          <div className="mt-4 space-y-2">
+            {Array.from(
+              cardioLogs.reduce((map, log) => {
+                const name = log.exercise_name;
+                const reps = log.reps_per_set as number[];
+                const mins = isTreadmillExercise(name) || reps.length > 1 || log.sets_completed > 1
+                  ? Math.round(reps.reduce((a, b) => a + b, 0) * log.sets_completed / 60)
+                  : (reps[0] ?? 0);
+                map.set(name, (map.get(name) ?? 0) + mins);
+                return map;
+              }, new Map<string, number>())
+            )
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 5)
+              .map(([name, mins]) => (
+                <div key={name} className="flex justify-between text-sm">
+                  <span className="text-gray-300">{name}</span>
+                  <span className="text-orange-400 font-semibold">
+                    {mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins} min`}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </Card>
+      )}
 
       {/* Weekly volume chart */}
       <Card>
@@ -208,6 +268,7 @@ function buildWeeklyVolume(
     let volume = 0;
     for (const s of weekSessions) {
       for (const log of logsBySession.get(s.id) ?? []) {
+        if (isCardioExercise(log.exercise_name)) continue; // skip cardio — weights are encoded, not lbs
         for (let i = 0; i < log.sets_completed; i++) {
           volume += (log.weight_per_set[i] ?? 0) * (log.reps_per_set[i] ?? 0);
         }
