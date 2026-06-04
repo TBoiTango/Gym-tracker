@@ -50,16 +50,19 @@ export default function SetupProfilePage() {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) { router.push("/login"); return; }
 
+    // Use update() not upsert() — the DB trigger guarantees the profile row
+    // already exists. upsert() without onConflict creates duplicate rows when
+    // the trigger has already inserted one, causing dashboard queries to break.
     const { error } = await supabase
       .from("profiles")
-      .upsert({
-        user_id: user.id,
+      .update({
         name: name.trim(),
         goal,
         experience_level: level,
         workout_duration: duration,
         include_cardio: includeCardio,
-      });
+      })
+      .eq("user_id", user.id);
 
     if (error) { setError(error.message); setLoading(false); return; }
 

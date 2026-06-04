@@ -79,14 +79,14 @@ export default function SettingsPage() {
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({
-        user_id: session.user.id,
+      .update({
         name: name.trim(),
         goal,
         experience_level: level,
         workout_duration: duration,
         include_cardio: includeCardio,
-      });
+      })
+      .eq("user_id", session.user.id);
 
     if (error) { setError(error.message); setSaving(false); return; }
 
