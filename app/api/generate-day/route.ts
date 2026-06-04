@@ -105,17 +105,19 @@ Cardio rules: ${cardioSection}
 
 Core rules: ${coreSection}
 
-${poolSection ? poolSection + "\n\n" : ""}General rules:
+${poolSection ? poolSection + "\n\n" : ""}EQUIPMENT VARIETY — read this first, it overrides everything else:
+- MAXIMUM 2 barbell exercises per session. Never more. This is a hard limit.
+- Every other exercise MUST use different equipment: dumbbells, cables, machines, or bodyweight.
+- Good Push Day: Barbell Bench Press → Dumbbell Shoulder Press → Cable Lateral Raise → Machine Chest Fly → Dumbbell Tricep Overhead Extension.
+- BAD Push Day (never do this): Barbell Bench → Barbell Incline → Barbell OHP → Barbell Skull Crusher → Barbell Upright Row.
+- If the user has dumbbells, cables, or machines available — USE THEM. Do not default to barbell for every exercise.
+
+General rules:
 1. Only use exercises possible with the listed equipment.
 2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 75-90s rest), hypertrophy (8-15 reps, 60-75s rest), endurance (15-25 reps, 30-45s rest). MAXIMUM rest_seconds is 90 — never exceed this.
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
 5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
-6. EQUIPMENT VARIETY — this is mandatory, not optional:
-   - A workout should NEVER be all barbell movements. Maximum 1-2 barbell exercises per session.
-   - Spread across equipment: barbell for 1 compound lift, dumbbells for isolation/unilateral work, cables for constant tension, machines for stability, bodyweight for finishers.
-   - Example of a good Push Day: Barbell Bench Press → Dumbbell Shoulder Press → Cable Lateral Raise → Dumbbell Tricep Kickback → Machine Chest Fly. NOT: Barbell Bench → Barbell OHP → Barbell Incline → Barbell Skull Crusher.
-   - If the user only has barbells, then barbell-only is fine. Otherwise always mix.
 
 Return exactly this JSON shape (a single day object):
 {
