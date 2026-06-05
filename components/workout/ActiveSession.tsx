@@ -107,7 +107,10 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     }
   };
 
-  const quickAddGroups = (() => {
+  // Quick Add groups — `muscle` is a CANONICAL category that the swap-exercise
+  // API and its validation understand (chest, back, shoulders, biceps, triceps,
+  // legs, abs and core). `subFocus` is an optional granular bias for the prompt.
+  const quickAddGroups: { label: string; muscle: string; subFocus?: string }[] = (() => {
     const focus = (planDay.muscle_focus || planDay.day_name).toLowerCase();
     if (focus.includes("push") || focus.includes("chest"))
       return [
@@ -119,20 +122,22 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       return [
         { label: "Back", muscle: "back" },
         { label: "Biceps", muscle: "biceps" },
+        { label: "Rear Delts", muscle: "shoulders", subFocus: "rear deltoids" },
       ];
     if (focus.includes("leg") || focus.includes("lower"))
       return [
-        { label: "Quads", muscle: "quads" },
-        { label: "Hamstrings", muscle: "hamstrings" },
-        { label: "Glutes", muscle: "glutes" },
-        { label: "Calves", muscle: "calves" },
+        { label: "Quads", muscle: "legs", subFocus: "quadriceps" },
+        { label: "Hamstrings", muscle: "legs", subFocus: "hamstrings" },
+        { label: "Glutes", muscle: "legs", subFocus: "glutes" },
+        { label: "Calves", muscle: "legs", subFocus: "calves" },
       ];
     if (focus.includes("upper"))
       return [
         { label: "Chest", muscle: "chest" },
         { label: "Back", muscle: "back" },
         { label: "Shoulders", muscle: "shoulders" },
-        { label: "Arms", muscle: "biceps" },
+        { label: "Biceps", muscle: "biceps" },
+        { label: "Triceps", muscle: "triceps" },
       ];
     return [
       { label: "Core", muscle: "abs and core" },
@@ -142,7 +147,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     ];
   })();
 
-  const quickAdd = async (muscle: string, label: string) => {
+  const quickAdd = async (muscle: string, label: string, subFocus?: string) => {
     setQuickAddLoading(label);
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession();
@@ -159,12 +164,14 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       }
       // Exclude all exercises already in the session so we don't double up
       const excludeExercises = exercises.map((e) => e.name);
+      console.log(`[QuickAdd] muscle="${muscle}" subFocus="${subFocus ?? ""}" excluding:`, excludeExercises);
       const res = await fetch("/api/swap-exercise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           exerciseName: "",
           muscleFocus: muscle,
+          subFocus,
           equipment,
           excludeExercises,
         }),
@@ -269,6 +276,25 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     }
     return exercises.length; // all done, append at end
   };
+
+  // Canonical muscle groups this day type covers — used to warn on mismatched manual adds
+  const dayMuscles = (() => {
+    const focus = (planDay.muscle_focus || planDay.day_name).toLowerCase();
+    if (focus.includes("push") || focus.includes("chest")) return ["chest", "shoulders", "triceps"];
+    if (focus.includes("pull") || focus.includes("back")) return ["back", "biceps", "shoulders"];
+    if (focus.includes("leg") || focus.includes("lower")) return ["legs"];
+    if (focus.includes("upper")) return ["chest", "back", "shoulders", "biceps", "triceps"];
+    return []; // unknown / full body — no warning
+  })();
+
+  // Live warning if the typed exercise targets a muscle group outside this day
+  const typedMuscleMismatch = (() => {
+    if (!newName.trim() || dayMuscles.length === 0) return null;
+    const inferred = inferMuscleGroupClient(newName.trim());
+    if (inferred === "unknown" || inferred === "abs and core") return null; // allow core anywhere
+    if (!dayMuscles.includes(inferred)) return inferred;
+    return null;
+  })();
 
   const confirmAddExercise = () => {
     if (!newName.trim()) return;
@@ -424,10 +450,10 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       <div className="mb-4">
         <p className="text-xs text-gray-500 mb-2">Quick Add</p>
         <div className="flex flex-wrap gap-2">
-          {quickAddGroups.map(({ label, muscle }) => (
+          {quickAddGroups.map(({ label, muscle, subFocus }) => (
             <button
               key={label}
-              onClick={() => quickAdd(muscle, label)}
+              onClick={() => quickAdd(muscle, label, subFocus)}
               disabled={quickAddLoading !== null}
               className="rounded-full border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:border-orange-500 hover:text-orange-400 disabled:opacity-50 transition-colors"
             >
@@ -502,6 +528,11 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
                 className="w-full rounded-xl border border-gray-600 bg-gray-800 px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500 focus:outline-none"
                 autoFocus
               />
+              {typedMuscleMismatch && (
+                <p className="mt-2 text-xs text-yellow-400">
+                  ⚠ This looks like a <span className="font-semibold capitalize">{typedMuscleMismatch}</span> exercise, which is outside today's {planDay.day_name}. Add anyway?
+                </p>
+              )}
             </div>
 
             {/* Sets */}
@@ -581,4 +612,19 @@ function StepBtn({ onClick, children }: { onClick: () => void; children: React.R
       {children}
     </button>
   );
+}
+
+// Client-side muscle group inference — mirrors the server logic in swap-exercise.
+// Returns a canonical group or "unknown".
+function inferMuscleGroupClient(name: string): string {
+  const n = name.toLowerCase();
+  if (/\bab\b|abdominal|core|crunch|sit.?up|leg raise|oblique|hollow|dead bug|pallof|woodchop|plank|copenhagen/.test(n)) return "abs and core";
+  if (/chest|bench|fly|pec|push.?up/.test(n)) return "chest";
+  if (/bicep|preacher|hammer curl/.test(n)) return "biceps";
+  if (/tricep|skull|pushdown|overhead ext/.test(n)) return "triceps";
+  if (/shoulder|delt|lateral raise|front raise|face pull|upright row|overhead press|military press/.test(n)) return "shoulders";
+  if (/back|bent.?over|\brow\b|lat\b|pulldown|deadlift|shrug|rhomboid|pull.?up|chin.?up/.test(n)) return "back";
+  if (/squat|leg press|lunge|quad|hamstring|glute|hip thrust|rdl|romanian|leg curl|leg ext|calf|nordic/.test(n)) return "legs";
+  if (/\bcurl\b/.test(n)) return "biceps"; // generic curl after leg curl ruled out
+  return "unknown";
 }

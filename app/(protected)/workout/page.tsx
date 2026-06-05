@@ -52,6 +52,8 @@ export default function WorkoutPage() {
     poolExercises: { exercise_name: string; sets: number; rep_range: string; rest_seconds: number; coaching_note: string }[];
   } | null>(null);
   const [adaptiveLoading, setAdaptiveLoading] = useState(false);
+  // Debug: exercises excluded from generation due to recent use (temporary, for verification)
+  const [excludedExercises, setExcludedExercises] = useState<string[]>([]);
 
   // Persist state to sessionStorage whenever key values change
   useEffect(() => {
@@ -164,7 +166,17 @@ export default function WorkoutPage() {
                 countsPerSession.reduce((a, b) => a + b, 0) / countsPerSession.length
               );
             }
+
+            // Preview the exclusion list (last 3 sessions of this day type) for the debug banner
+            const last3Ids = pastSessions!.slice(0, 3).map((s) => s.id);
+            const excluded = Array.from(new Set(
+              logs.filter((l) => last3Ids.includes(l.session_id)).map((l) => l.exercise_name)
+            ));
+            setExcludedExercises(excluded);
+            console.log(`[adaptive] Excluded exercises preview for "${selectedDay.day_name}":`, excluded);
           }
+        } else {
+          setExcludedExercises([]);
         }
 
         // Pool exercises for this day type, least-recently-used first
@@ -197,36 +209,39 @@ export default function WorkoutPage() {
     setStep("generating");
     setError("");
 
-    // Fetch core exercises used in the last 3 sessions to prevent repeats
-    let recentlyUsedCore: string[] = [];
+    // ── Repeat prevention ─────────────────────────────────────────────────────
+    // Fetch the last 3 completed sessions OF THIS EXACT DAY TYPE and collect
+    // every exercise used. Excluding the last 3 means any exercise gets roughly
+    // a 4-session cooldown before it can reappear — applies to ALL day types.
+    let recentlyUsedExercises: string[] = [];
     if (userId) {
-      const { data: recentSessions } = await supabase
+      const { data: recentSessions, error: sessErr } = await supabase
         .from("workout_sessions")
-        .select("id")
+        .select("id, started_at")
         .eq("user_id", userId)
+        .eq("plan_day", selectedDay.day_name)  // SAME DAY TYPE only
         .not("completed_at", "is", null)
+        .or("session_type.is.null,session_type.eq.workout,session_type.eq.free")
         .order("started_at", { ascending: false })
         .limit(3);
 
+      console.log(`[generate] Day type: "${selectedDay.day_name}" — found ${recentSessions?.length ?? 0} recent sessions of this type`, sessErr?.message ?? "");
+
       if (recentSessions?.length) {
         const ids = recentSessions.map((s) => s.id);
-        const { data: coreLogs } = await supabase
+        const { data: recentLogs } = await supabase
           .from("exercise_logs")
-          .select("exercise_name")
+          .select("exercise_name, session_id")
           .in("session_id", ids);
 
-        if (coreLogs) {
-          // Filter to core/ab exercises only
-          const coreKeywords = /plank|crunch|sit.?up|leg raise|dead bug|pallof|woodchop|russian twist|hollow|copenhagen|ab |core|oblique|bird.?dog|hanging/i;
-          recentlyUsedCore = Array.from(new Set(
-            coreLogs
-              .map(l => l.exercise_name)
-              .filter(name => coreKeywords.test(name))
-          ));
-          console.log(`[generate] recently_used_core being sent:`, recentlyUsedCore);
+        if (recentLogs?.length) {
+          recentlyUsedExercises = Array.from(new Set(recentLogs.map((l) => l.exercise_name)));
         }
       }
     }
+
+    console.log(`[generate] recently_used_exercises being sent to Claude (${recentlyUsedExercises.length}):`, recentlyUsedExercises);
+    setExcludedExercises(recentlyUsedExercises);
 
     const res = await fetch("/api/generate-day", {
       method: "POST",
@@ -245,7 +260,7 @@ export default function WorkoutPage() {
         // Adaptive volume params — only send if we have meaningful data
         target_exercise_count: adaptiveInfo && adaptiveInfo.avgExercises > 0 ? adaptiveInfo.avgExercises : undefined,
         pool_exercises: adaptiveInfo?.poolExercises ?? [],
-        recently_used_core: recentlyUsedCore,
+        recently_used_exercises: recentlyUsedExercises,
       }),
     });
 
@@ -530,6 +545,18 @@ export default function WorkoutPage() {
             )}
             {adaptiveLoading && (
               <div className="h-12 rounded-xl bg-gray-800 animate-pulse" />
+            )}
+
+            {/* DEBUG: shows exercises excluded from generation due to recent use */}
+            {excludedExercises.length > 0 && (
+              <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
+                <p className="text-xs text-yellow-400/80 font-semibold mb-1">
+                  🔧 DEBUG · Excluded exercises ({excludedExercises.length}):
+                </p>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  {excludedExercises.join(", ")}
+                </p>
+              </div>
             )}
 
             {error && <p className="text-sm text-red-400">{error}</p>}

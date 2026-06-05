@@ -44,7 +44,7 @@ function inferMuscleGroup(exerciseName: string, dayFocus: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { exerciseName, muscleFocus, equipment, experienceLevel, excludeExercises = [] } = await req.json();
+    const { exerciseName, muscleFocus, subFocus, equipment, experienceLevel, excludeExercises = [] } = await req.json();
 
     // exerciseName may be empty string for Quick Add (muscle-only lookup)
     if (!muscleFocus) {
@@ -60,11 +60,14 @@ export async function POST(req: NextRequest) {
 
     // For Quick Add (no exerciseName), use a different prompt framing
     const isQuickAdd = !exerciseName;
+    const subFocusLine = subFocus ? `\nSpecifically bias toward: ${subFocus} (within ${targetMuscle}).` : "";
+
+    console.log(`[swap-exercise] isQuickAdd=${isQuickAdd} muscleFocus="${muscleFocus}" subFocus="${subFocus ?? ""}" targetMuscle="${targetMuscle}"`);
 
     const prompt = isQuickAdd
       ? `You are an expert personal trainer recommending an ADDITIONAL exercise to add to an existing session.
 
-Target muscle group: ${targetMuscle}
+Target muscle group: ${targetMuscle}${subFocusLine}
 Workout day focus: ${muscleFocus}
 Available equipment: ${equipmentList}
 Experience level: ${experienceLevel ?? "intermediate"}

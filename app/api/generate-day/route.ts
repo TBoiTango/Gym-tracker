@@ -33,8 +33,8 @@ export interface GenerateDayRequest {
   // Adaptive volume learning
   target_exercise_count?: number;   // rolling avg from past sessions
   pool_exercises?: PoolExercise[];  // user-added exercises to rotate in
-  // Core exercise history — prevent repeats across sessions
-  recently_used_core?: string[];
+  // Exercise history — prevent repeats across sessions of the same day type
+  recently_used_exercises?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       include_core,
       target_exercise_count,
       pool_exercises = [],
-      recently_used_core = [],
+      recently_used_exercises = [],
     } = body;
 
     const equipmentList = equipment.join(", ");
@@ -68,11 +68,16 @@ export async function POST(req: NextRequest) {
   - For rep_range, use a specific descriptive string, e.g. "20 min @ 3 mph 10% incline" or "8 × 30s sprints / 30s walk".`
       : `No cardio — weights only.`;
 
-    const recentCoreNote = recently_used_core.length > 0
-      ? `\nDo NOT use any of these ab exercises — they were used in the last 3 sessions:\n${recently_used_core.map(e => `  - ${e}`).join("\n")}`
-      : "";
+    console.log(`[generate-day] recently_used_exercises (${recently_used_exercises.length}):`, recently_used_exercises);
 
-    console.log(`[generate-day] recently_used_core:`, recently_used_core);
+    // Hard exclusion of every exercise used in the last 3 sessions of this day type.
+    // This gives each exercise a ~4-session cooldown before it can reappear.
+    const recentExclusionSection = recently_used_exercises.length > 0
+      ? `\n\nREPEAT PREVENTION — this is a HARD rule, no exceptions:
+The following exercises were used in the last 3 sessions of this day type and MUST NOT appear in today's workout (not even as a variation):
+${recently_used_exercises.map((e) => `  - ${e}`).join("\n")}
+Pick genuinely different exercises that still hit the same muscle groups. Do not return any exercise from the list above.`
+      : "";
 
     const coreSection = include_core
       ? `After the main lifting exercises (before cardio if included), add 2 core exercises.
@@ -86,7 +91,7 @@ CORE SELECTION RULES:
    - Hip flexion: Hanging Leg Raise, Lying Leg Raise, Dragon Flag, V-Up
    - Lateral: Side Plank, Copenhagen Plank, Lateral Crunch
 3. Pick 2 exercises from DIFFERENT categories above — never two from the same.
-4. Choose based on available equipment.${recentCoreNote}`
+4. Choose based on available equipment.`
       : `No dedicated core exercises.`;
 
     // Pool exercises the user has previously added — rotate 1-2 in naturally
@@ -126,7 +131,7 @@ General rules:
 2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 75-90s rest), hypertrophy (8-15 reps, 60-75s rest), endurance (15-25 reps, 30-45s rest). MAXIMUM rest_seconds is 90 — never exceed this.
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
-5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
+5. Return ONLY valid JSON — no markdown, no explanation, no code fences.${recentExclusionSection}
 
 Return exactly this JSON shape (a single day object):
 {
@@ -155,6 +160,22 @@ Return exactly this JSON shape (a single day object):
         { error: "Claude returned an unexpected response. Please try again." },
         { status: 500 }
       );
+    }
+
+    // Server-side safety net: verify no excluded exercise slipped through.
+    if (recently_used_exercises.length > 0 && dayData.exercises) {
+      const excludedLower = recently_used_exercises.map((e: string) => e.toLowerCase().trim());
+      const violations = dayData.exercises.filter((ex) =>
+        excludedLower.includes(ex.name.toLowerCase().trim())
+      );
+      if (violations.length > 0) {
+        console.warn(
+          `[generate-day] Claude included ${violations.length} excluded exercise(s) despite instructions:`,
+          violations.map((v) => v.name)
+        );
+      } else {
+        console.log(`[generate-day] ✓ Verified: none of the ${recently_used_exercises.length} excluded exercises appear in the generated workout.`);
+      }
     }
 
     return NextResponse.json(dayData);
