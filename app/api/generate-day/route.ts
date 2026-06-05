@@ -33,6 +33,8 @@ export interface GenerateDayRequest {
   // Adaptive volume learning
   target_exercise_count?: number;   // rolling avg from past sessions
   pool_exercises?: PoolExercise[];  // user-added exercises to rotate in
+  // Core exercise history — prevent repeats across sessions
+  recently_used_core?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
       include_core,
       target_exercise_count,
       pool_exercises = [],
+      recently_used_core = [],
     } = body;
 
     const equipmentList = equipment.join(", ");
@@ -65,6 +68,12 @@ export async function POST(req: NextRequest) {
   - For rep_range, use a specific descriptive string, e.g. "20 min @ 3 mph 10% incline" or "8 × 30s sprints / 30s walk".`
       : `No cardio — weights only.`;
 
+    const recentCoreNote = recently_used_core.length > 0
+      ? `\nDo NOT use any of these ab exercises — they were used in the last 3 sessions:\n${recently_used_core.map(e => `  - ${e}`).join("\n")}`
+      : "";
+
+    console.log(`[generate-day] recently_used_core:`, recently_used_core);
+
     const coreSection = include_core
       ? `After the main lifting exercises (before cardio if included), add 2 core exercises.
 
@@ -77,7 +86,7 @@ CORE SELECTION RULES:
    - Hip flexion: Hanging Leg Raise, Lying Leg Raise, Dragon Flag, V-Up
    - Lateral: Side Plank, Copenhagen Plank, Lateral Crunch
 3. Pick 2 exercises from DIFFERENT categories above — never two from the same.
-4. Choose based on available equipment.`
+4. Choose based on available equipment.${recentCoreNote}`
       : `No dedicated core exercises.`;
 
     // Pool exercises the user has previously added — rotate 1-2 in naturally

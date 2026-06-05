@@ -197,6 +197,37 @@ export default function WorkoutPage() {
     setStep("generating");
     setError("");
 
+    // Fetch core exercises used in the last 3 sessions to prevent repeats
+    let recentlyUsedCore: string[] = [];
+    if (userId) {
+      const { data: recentSessions } = await supabase
+        .from("workout_sessions")
+        .select("id")
+        .eq("user_id", userId)
+        .not("completed_at", "is", null)
+        .order("started_at", { ascending: false })
+        .limit(3);
+
+      if (recentSessions?.length) {
+        const ids = recentSessions.map((s) => s.id);
+        const { data: coreLogs } = await supabase
+          .from("exercise_logs")
+          .select("exercise_name")
+          .in("session_id", ids);
+
+        if (coreLogs) {
+          // Filter to core/ab exercises only
+          const coreKeywords = /plank|crunch|sit.?up|leg raise|dead bug|pallof|woodchop|russian twist|hollow|copenhagen|ab |core|oblique|bird.?dog|hanging/i;
+          recentlyUsedCore = Array.from(new Set(
+            coreLogs
+              .map(l => l.exercise_name)
+              .filter(name => coreKeywords.test(name))
+          ));
+          console.log(`[generate] recently_used_core being sent:`, recentlyUsedCore);
+        }
+      }
+    }
+
     const res = await fetch("/api/generate-day", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -214,6 +245,7 @@ export default function WorkoutPage() {
         // Adaptive volume params — only send if we have meaningful data
         target_exercise_count: adaptiveInfo && adaptiveInfo.avgExercises > 0 ? adaptiveInfo.avgExercises : undefined,
         pool_exercises: adaptiveInfo?.poolExercises ?? [],
+        recently_used_core: recentlyUsedCore,
       }),
     });
 

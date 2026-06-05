@@ -452,32 +452,71 @@ export default function ExerciseCard(props: Props) {
   const [restSeconds, setRestSeconds] = useState(0);
   const [lastSessionNote, setLastSessionNote] = useState<string | null>(null);
 
-  // On mount, fetch the last logged weight/reps for this exercise from a previous session
+  // On mount, fetch last logged weight/reps for this exercise from a previous session.
+  // exercise_logs has no created_at — join through workout_sessions to order by started_at.
   useEffect(() => {
-    if (existingLog) return; // already have data for this session
+    if (existingLog) return; // already have data for this session — no need to look up history
     (async () => {
-      const { data: lastLog } = await supabase
+      console.log(`[ExerciseCard] Fetching last session data for: "${exercise.name}"`);
+
+      // Step 1: get the IDs of recent completed sessions (excluding this one)
+      const { data: recentSessions, error: sessErr } = await supabase
+        .from("workout_sessions")
+        .select("id")
+        .neq("id", sessionId)
+        .not("completed_at", "is", null)
+        .order("started_at", { ascending: false })
+        .limit(20);
+
+      if (sessErr) {
+        console.error(`[ExerciseCard] Session query error:`, sessErr.message);
+        return;
+      }
+
+      console.log(`[ExerciseCard] Found ${recentSessions?.length ?? 0} recent sessions`);
+
+      if (!recentSessions?.length) {
+        setLastSessionNote("First time — give it a shot 💪");
+        return;
+      }
+
+      const sessionIds = recentSessions.map((s) => s.id);
+
+      // Step 2: find the most recent log for this exact exercise name in those sessions
+      const { data: lastLog, error: logErr } = await supabase
         .from("exercise_logs")
-        .select("weight_per_set, reps_per_set, sets_completed")
+        .select("weight_per_set, reps_per_set, sets_completed, session_id")
         .eq("exercise_name", exercise.name)
-        .neq("session_id", sessionId)
-        .order("created_at", { ascending: false })
+        .in("session_id", sessionIds)
         .limit(1)
         .maybeSingle();
 
-      if (!lastLog || !lastLog.weight_per_set?.length) return;
+      if (logErr) {
+        console.error(`[ExerciseCard] Log query error:`, logErr.message);
+        return;
+      }
+
+      console.log(`[ExerciseCard] Last log for "${exercise.name}":`, lastLog);
+
+      if (!lastLog || !lastLog.weight_per_set?.length) {
+        setLastSessionNote("First time — give it a shot 💪");
+        return;
+      }
 
       const lastWeight = (lastLog.weight_per_set as number[]).slice(-1)[0];
       const lastReps = (lastLog.reps_per_set as number[]).slice(-1)[0];
+      const topRep = parseInt(exercise.rep_range.split("-")[1] ?? exercise.rep_range) || 0;
 
       if (lastWeight > 0) {
         setWeight(lastWeight);
         setWeightInput(String(lastWeight));
-        setLastSessionNote(`Last time: ${lastWeight} lbs × ${lastReps} reps`);
+
+        // Nudge if they hit the top of their rep range
+        const nudge = lastReps >= topRep && topRep > 0 ? " — ↑ Try adding 5 lbs today!" : "";
+        setLastSessionNote(`Last time: ${lastWeight} lbs × ${lastReps} reps${nudge}`);
+        console.log(`[ExerciseCard] Pre-filled weight: ${lastWeight}, reps: ${lastReps}`);
       }
-      if (lastReps > 0) {
-        setReps(lastReps);
-      }
+      if (lastReps > 0) setReps(lastReps);
     })();
   }, []);
 

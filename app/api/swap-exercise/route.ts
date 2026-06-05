@@ -124,9 +124,29 @@ Return ONLY valid JSON, no markdown, no explanation:
   "coaching_note": "One practical tip for proper form."
 }`;
 
-    const raw = await askClaude(prompt);
-    const cleaned = extractJSON(raw);
-    const exercise = JSON.parse(cleaned);
+    const attemptSwap = async (extraStrictness = false): Promise<Record<string, unknown>> => {
+      const finalPrompt = extraStrictness
+        ? prompt + `\n\nFINAL WARNING: You returned the wrong muscle group on the previous attempt. The replacement MUST target "${targetMuscle}" and ONLY "${targetMuscle}". No other muscle group is acceptable.`
+        : prompt;
+
+      const raw = await askClaude(finalPrompt);
+      const cleaned = extractJSON(raw);
+      return JSON.parse(cleaned);
+    };
+
+    let exercise = await attemptSwap();
+
+    // Validate the returned exercise targets the correct muscle group
+    const returnedMuscle = inferMuscleGroup(exercise.name as string, targetMuscle);
+    console.log(`[swap-exercise] Requested: "${targetMuscle}", got: "${exercise.name}" → inferred: "${returnedMuscle}"`);
+
+    if (returnedMuscle !== targetMuscle) {
+      console.warn(`[swap-exercise] Muscle mismatch — retrying with stricter prompt`);
+      exercise = await attemptSwap(true);
+
+      const retryMuscle = inferMuscleGroup(exercise.name as string, targetMuscle);
+      console.log(`[swap-exercise] Retry result: "${exercise.name}" → inferred: "${retryMuscle}"`);
+    }
 
     return NextResponse.json(exercise);
   } catch (err) {
