@@ -9,6 +9,25 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
 
+// Group day names into muscle categories so Pull A and Pull B count as the same
+// "pull" category for repeat-prevention purposes.
+function muscleCategory(dayName: string): string {
+  const n = (dayName || "").toLowerCase();
+  if (n.includes("pull")) return "pull";
+  if (n.includes("push")) return "push";
+  if (n.includes("upper")) return "upper";
+  if (n.includes("lower")) return "lower";
+  if (n.includes("leg")) return "legs";
+  if (n.includes("back")) return "pull";
+  if (n.includes("chest")) return "push";
+  return n.trim() || "other";
+}
+
+// Detect whether an exercise name is a core/ab movement.
+function isCoreExercise(name: string): boolean {
+  return /plank|crunch|sit.?up|leg raise|dead ?bug|pallof|woodchop|russian twist|hollow|copenhagen|\bab\b|abdominal|core|oblique|bird.?dog|hanging|dragon flag|v-?up|toe touch/i.test(name);
+}
+
 const DURATIONS = [
   { value: 30, label: "30 min", note: "Compounds only" },
   { value: 45, label: "45 min", note: "Compounds + some isolation" },
@@ -167,17 +186,12 @@ export default function WorkoutPage() {
               );
             }
 
-            // Preview the exclusion list (last 3 sessions of this day type) for the debug banner
-            const last3Ids = pastSessions!.slice(0, 3).map((s) => s.id);
-            const excluded = Array.from(new Set(
-              logs.filter((l) => last3Ids.includes(l.session_id)).map((l) => l.exercise_name)
-            ));
-            setExcludedExercises(excluded);
-            console.log(`[adaptive] Excluded exercises preview for "${selectedDay.day_name}":`, excluded);
           }
-        } else {
-          setExcludedExercises([]);
         }
+
+        // Preview the exclusion list for the debug banner using the real rule
+        const excludedPreview = await computeExcludedExercises(selectedDay.day_name);
+        setExcludedExercises(excludedPreview);
 
         // Pool exercises for this day type, least-recently-used first
         const { data: pool } = await supabase
@@ -204,42 +218,71 @@ export default function WorkoutPage() {
     setStep("options");
   };
 
+  // ── Repeat prevention ───────────────────────────────────────────────────────
+  // Two separate rules:
+  //  • CORE: exclude core exercises used in the last 2 completed sessions of ANY
+  //    day type, so core never repeats on back-to-back training days.
+  //  • LIFTING: exclude the lifting movements from the most recent session of the
+  //    SAME muscle category (Pull A ↔ Pull B), so the two same-category days in a
+  //    week differ. Older sessions are NOT excluded, so next week can reuse
+  //    movements with variation.
+  const computeExcludedExercises = async (dayName: string): Promise<string[]> => {
+    if (!userId) return [];
+
+    const { data: recentSessions } = await supabase
+      .from("workout_sessions")
+      .select("id, plan_day, started_at")
+      .eq("user_id", userId)
+      .not("completed_at", "is", null)
+      .or("session_type.is.null,session_type.eq.workout,session_type.eq.free")
+      .order("started_at", { ascending: false })
+      .limit(10);
+
+    if (!recentSessions?.length) return [];
+
+    const myCategory = muscleCategory(dayName);
+    // Most recent session of the SAME category (for lifting exclusion)
+    const sameCategorySession = recentSessions.find((s) => muscleCategory(s.plan_day) === myCategory);
+    // Last 2 sessions of ANY type (for core exclusion)
+    const last2 = recentSessions.slice(0, 2);
+
+    const idsToFetch = Array.from(new Set([
+      ...(sameCategorySession ? [sameCategorySession.id] : []),
+      ...last2.map((s) => s.id),
+    ]));
+    if (idsToFetch.length === 0) return [];
+
+    const { data: logs } = await supabase
+      .from("exercise_logs")
+      .select("exercise_name, session_id")
+      .in("session_id", idsToFetch);
+
+    if (!logs?.length) return [];
+
+    const exclude = new Set<string>();
+    for (const l of logs) {
+      const core = isCoreExercise(l.exercise_name);
+      // Lifting from the most recent same-category session
+      if (sameCategorySession && l.session_id === sameCategorySession.id && !core) {
+        exclude.add(l.exercise_name);
+      }
+      // Core from the last 2 sessions of any type
+      if (core && last2.some((s) => s.id === l.session_id)) {
+        exclude.add(l.exercise_name);
+      }
+    }
+
+    const result = Array.from(exclude);
+    console.log(`[exclusions] day="${dayName}" category="${myCategory}" sameCatSession=${sameCategorySession?.plan_day ?? "none"} → excluding:`, result);
+    return result;
+  };
+
   const generate = async () => {
     if (!selectedDay) return;
     setStep("generating");
     setError("");
 
-    // ── Repeat prevention ─────────────────────────────────────────────────────
-    // Fetch the last 3 completed sessions OF THIS EXACT DAY TYPE and collect
-    // every exercise used. Excluding the last 3 means any exercise gets roughly
-    // a 4-session cooldown before it can reappear — applies to ALL day types.
-    let recentlyUsedExercises: string[] = [];
-    if (userId) {
-      const { data: recentSessions, error: sessErr } = await supabase
-        .from("workout_sessions")
-        .select("id, started_at")
-        .eq("user_id", userId)
-        .eq("plan_day", selectedDay.day_name)  // SAME DAY TYPE only
-        .not("completed_at", "is", null)
-        .or("session_type.is.null,session_type.eq.workout,session_type.eq.free")
-        .order("started_at", { ascending: false })
-        .limit(3);
-
-      console.log(`[generate] Day type: "${selectedDay.day_name}" — found ${recentSessions?.length ?? 0} recent sessions of this type`, sessErr?.message ?? "");
-
-      if (recentSessions?.length) {
-        const ids = recentSessions.map((s) => s.id);
-        const { data: recentLogs } = await supabase
-          .from("exercise_logs")
-          .select("exercise_name, session_id")
-          .in("session_id", ids);
-
-        if (recentLogs?.length) {
-          recentlyUsedExercises = Array.from(new Set(recentLogs.map((l) => l.exercise_name)));
-        }
-      }
-    }
-
+    const recentlyUsedExercises = await computeExcludedExercises(selectedDay.day_name);
     console.log(`[generate] recently_used_exercises being sent to Claude (${recentlyUsedExercises.length}):`, recentlyUsedExercises);
     setExcludedExercises(recentlyUsedExercises);
 
@@ -551,7 +594,7 @@ export default function WorkoutPage() {
             {excludedExercises.length > 0 && (
               <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
                 <p className="text-xs text-yellow-400/80 font-semibold mb-1">
-                  🔧 DEBUG · Excluded exercises ({excludedExercises.length}):
+                  🔧 DEBUG · Won&apos;t repeat ({excludedExercises.length}) — core from last 2 days + lifts from this week&apos;s same-category day:
                 </p>
                 <p className="text-xs text-gray-400 leading-relaxed">
                   {excludedExercises.join(", ")}

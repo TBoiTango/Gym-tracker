@@ -70,13 +70,14 @@ export async function POST(req: NextRequest) {
 
     console.log(`[generate-day] recently_used_exercises (${recently_used_exercises.length}):`, recently_used_exercises);
 
-    // Hard exclusion of every exercise used in the last 3 sessions of this day type.
-    // This gives each exercise a ~4-session cooldown before it can reappear.
+    // Exclusion list: core exercises from the last couple of sessions (must never
+    // repeat back-to-back) plus lifting movements from the complementary same-category
+    // day this week (so e.g. Pull B differs from Pull A).
     const recentExclusionSection = recently_used_exercises.length > 0
       ? `\n\nREPEAT PREVENTION — this is a HARD rule, no exceptions:
-The following exercises were used in the last 3 sessions of this day type and MUST NOT appear in today's workout (not even as a variation):
+The following exercises were used very recently and MUST NOT appear in today's workout (not even as a renamed variation):
 ${recently_used_exercises.map((e) => `  - ${e}`).join("\n")}
-Pick genuinely different exercises that still hit the same muscle groups. Do not return any exercise from the list above.`
+Pick genuinely different exercises that still hit the same muscle groups. It is fine to use a different variation of the same lift (e.g. if "Cable Row" is excluded, a "Chest-Supported Dumbbell Row" is acceptable), but do not return any exact exercise from the list above.`
       : "";
 
     const coreSection = include_core
