@@ -92,6 +92,15 @@ export default async function DashboardPage() {
   const isCardioOnly = workoutStyle === "cardio_only";
   const isFlexible = isNoSplit || isCardioOnly;
 
+  // Find an in-progress (not yet finished) workout so the user can hop back into it.
+  // Only show recent ones (started within the last 24h) to avoid stale sessions.
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const inProgressSession = sessions.find(
+    (s) => !s.completed_at &&
+    s.started_at >= oneDayAgo &&
+    (s as { session_type?: string }).session_type !== "rest"
+  );
+
   return (
     <main className="mx-auto max-w-lg px-4 py-8 space-y-5">
       <div className="flex items-center justify-between">
@@ -101,6 +110,22 @@ export default async function DashboardPage() {
         </div>
         <StreakCounter sessions={sessions} />
       </div>
+
+      {/* Resume in-progress workout */}
+      {inProgressSession && (
+        <Link
+          href={`/workout/${inProgressSession.id}`}
+          className="block rounded-xl border border-green-600/40 bg-green-900/15 px-4 py-3 hover:bg-green-900/25 transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-green-400">Workout in progress</p>
+              <p className="font-semibold mt-0.5">{inProgressSession.plan_day}</p>
+            </div>
+            <span className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white">Resume →</span>
+          </div>
+        </Link>
+      )}
 
       {/* Weekly progress ring */}
       <Card>

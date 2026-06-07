@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise, PlanDay, ExerciseLog } from "@/types";
 import ExerciseCard from "@/components/workout/ExerciseCard";
@@ -389,6 +390,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   return (
     <main className="mx-auto max-w-lg px-4 py-6">
+      {/* Nav out — logged sets are saved automatically, so you can leave and come back */}
+      <div className="mb-4 flex items-center gap-4 text-sm">
+        <Link href="/dashboard" className="text-gray-500 hover:text-gray-300 transition-colors">← Dashboard</Link>
+        <Link href="/workout/history" className="text-gray-500 hover:text-gray-300 transition-colors">History</Link>
+        <span className="ml-auto text-xs text-gray-600">Progress saved automatically</span>
+      </div>
+
       <div className="mb-6">
         <h1 className="text-xl font-bold">{planDay.day_name}</h1>
         <p className="text-sm text-gray-400">{planDay.muscle_focus}</p>
