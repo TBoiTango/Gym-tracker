@@ -107,6 +107,50 @@ export function isBodyweightExercise(name: string): boolean {
   return BODYWEIGHT_SIGNALS.some((k) => lower.includes(k));
 }
 
+// ── Muscle group inference ────────────────────────────────────────────────────
+// Returns a canonical primary muscle group for an exercise name, or "unknown".
+export type MuscleGroup =
+  | "chest" | "back" | "shoulders" | "biceps" | "triceps"
+  | "legs" | "abs and core" | "cardio" | "unknown";
+
+export function inferExerciseMuscle(name: string): MuscleGroup {
+  const n = name.toLowerCase();
+  if (isCardioExercise(name)) return "cardio";
+  // Core first — broad
+  if (/\bab\b|abdominal|core|crunch|sit.?up|leg raise|oblique|wheel|roller|russian twist|hollow|dead ?bug|bird.?dog|pallof|woodchop|copenhagen|plank|dragon flag|v-?up|toe touch|hanging knee/.test(n))
+    return "abs and core";
+  if (/chest|bench press|incline press|decline press|\bfly\b|flye|pec|push.?up|chest press|chest dip/.test(n))
+    return "chest";
+  if (/tricep|skull|pushdown|overhead extension|kickback|close.?grip bench|jm press/.test(n))
+    return "triceps";
+  if (/bicep|preacher|hammer curl|concentration curl|spider curl|chin.?up/.test(n))
+    return "biceps";
+  if (/shoulder|delt|lateral raise|front raise|rear raise|face pull|upright row|overhead press|military press|arnold press|shrug/.test(n))
+    return "shoulders";
+  if (/\bpress\b/.test(n) && !/bench|incline|decline|chest|pec|leg/.test(n))
+    return "shoulders";
+  if (/back|bent.?over|\brow\b|pendlay|lat\b|pulldown|pull.?down|pull.?up|deadlift|rhomboid|t-bar|seal row/.test(n))
+    return "back";
+  if (/squat|leg press|lunge|quad|hamstring|glute|hip thrust|rdl|romanian|leg curl|leg ext|calf|nordic|step.?up|bulgarian|good morning/.test(n))
+    return "legs";
+  if (/\bcurl\b/.test(n)) return "biceps"; // generic curl after leg curl ruled out
+  if (/\bdip\b/.test(n)) return "triceps";
+  return "unknown";
+}
+
+// Allowed muscle groups for a given day type. Empty array = allow anything
+// (unknown/full-body days). Core is handled separately (allowed when opted in).
+export function allowedMusclesForDay(dayName: string): MuscleGroup[] {
+  const n = (dayName || "").toLowerCase();
+  if (n.includes("push")) return ["chest", "shoulders", "triceps"];
+  if (n.includes("pull")) return ["back", "biceps", "shoulders"]; // shoulders allows rear delts
+  if (n.includes("leg") || n.includes("lower")) return ["legs"];
+  if (n.includes("upper")) return ["chest", "back", "shoulders", "biceps", "triceps"];
+  if (n.includes("chest")) return ["chest", "shoulders", "triceps"];
+  if (n.includes("back")) return ["back", "biceps", "shoulders"];
+  return []; // unknown / full body — no restriction
+}
+
 /**
  * Smoke-test the classifier against known exercises.
  * Returns a list of failures — empty array means all pass.

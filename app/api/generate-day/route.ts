@@ -10,6 +10,7 @@ export const maxDuration = 60; // seconds — overrides Vercel's default 10s lim
 import { NextRequest, NextResponse } from "next/server";
 import { askClaude, extractJSON } from "@/lib/claude";
 import type { PlanDay } from "@/types";
+import { inferExerciseMuscle, allowedMusclesForDay } from "@/lib/exercise-classifier";
 
 export interface PoolExercise {
   exercise_name: string;
@@ -176,6 +177,61 @@ Return exactly this JSON shape (a single day object):
         );
       } else {
         console.log(`[generate-day] ✓ Verified: none of the ${recently_used_exercises.length} excluded exercises appear in the generated workout.`);
+      }
+    }
+
+    // ── FIX 1: Hard muscle-group validation + replacement ─────────────────────
+    // Reject any exercise that doesn't match the day's allowed muscle groups
+    // (core allowed when the user opted in; cardio always allowed as a finisher).
+    const allowed = allowedMusclesForDay(day_name);
+    if (allowed.length > 0 && dayData.exercises?.length) {
+      const isAllowed = (exName: string): boolean => {
+        const m = inferExerciseMuscle(exName);
+        if (m === "cardio") return true;                      // cardio finisher
+        if (m === "abs and core") return include_core;        // core only if opted in
+        if (m === "unknown") return true;                     // can't classify — don't reject
+        return allowed.includes(m);
+      };
+
+      const bad = dayData.exercises.filter((ex) => !isAllowed(ex.name));
+      if (bad.length > 0) {
+        console.warn(`[generate-day] FIX1 — ${bad.length} exercise(s) failed muscle validation for "${day_name}" (allowed: ${allowed.join(", ")}):`, bad.map((b) => `${b.name} [${inferExerciseMuscle(b.name)}]`));
+
+        // Ask Claude for same-count replacements that hit only the allowed muscles
+        const replacePrompt = `You are an expert coach fixing a workout. The day type is "${day_name}" which ONLY trains these muscle groups: ${allowed.join(", ")}${include_core ? ", and core" : ""}.
+
+These exercises were WRONG (they target other muscle groups) and must be replaced:
+${bad.map((b) => `  - ${b.name}`).join("\n")}
+
+Available equipment: ${equipmentList}
+Replace each one with a DIFFERENT exercise that trains one of the allowed muscle groups (${allowed.join(", ")}) as its PRIMARY muscle, possible with the equipment. Do not reuse any of the wrong exercises above.
+
+Return ONLY a JSON array, same length and order as the wrong list:
+[{ "name": "...", "sets": 3, "rep_range": "8-12", "rest_seconds": 60, "coaching_note": "..." }]`;
+
+        try {
+          const rawFix = await askClaude(replacePrompt);
+          const replacements = JSON.parse(extractJSON(rawFix)) as PlanDay["exercises"];
+          let ri = 0;
+          dayData.exercises = dayData.exercises.map((ex) => {
+            if (!isAllowed(ex.name) && replacements[ri]) {
+              const repl = replacements[ri++];
+              // Only accept the replacement if it actually passes validation
+              if (isAllowed(repl.name)) {
+                console.log(`[generate-day] FIX1 — replaced "${ex.name}" → "${repl.name}"`);
+                return repl;
+              }
+            }
+            return ex;
+          });
+          // Final filter: drop anything still invalid rather than show wrong muscle
+          dayData.exercises = dayData.exercises.filter((ex) => isAllowed(ex.name));
+        } catch (e) {
+          console.error("[generate-day] FIX1 replacement failed, dropping bad exercises:", e);
+          dayData.exercises = dayData.exercises.filter((ex) => isAllowed(ex.name));
+        }
+      } else {
+        console.log(`[generate-day] ✓ FIX1 — all exercises match allowed muscles for "${day_name}".`);
       }
     }
 
