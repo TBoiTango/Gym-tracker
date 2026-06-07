@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -27,6 +27,22 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   const [exercises, setExercises] = useState<Exercise[]>(planDay.exercises);
   const [logs, setLogs] = useState<ExerciseLog[]>(existingLogs);
   const [finishing, setFinishing] = useState(false);
+
+  // Persist the exercise list to the session row whenever it changes (add, quick-add,
+  // skip, reorder, add-set) so leaving and resuming the workout keeps everything.
+  // Skip the very first render — the list already matches what's in the DB.
+  const isFirstExerciseSync = useRef(true);
+  useEffect(() => {
+    if (isFirstExerciseSync.current) {
+      isFirstExerciseSync.current = false;
+      return;
+    }
+    supabase
+      .from("workout_sessions")
+      .update({ exercises_data: exercises })
+      .eq("id", sessionId)
+      .then(() => {});
+  }, [exercises]);
 
   // Warmup
   const [warmup, setWarmup] = useState<WarmupExercise[] | null>(null);
