@@ -9,6 +9,14 @@ import ExerciseCard from "@/components/workout/ExerciseCard";
 import Button from "@/components/ui/Button";
 import { MUSCLE_LABELS, exercisesForEquipment, type LibraryMuscle, type LibraryExercise } from "@/lib/exercise-library";
 import { isCardioExercise } from "@/lib/exercise-classifier";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface WarmupExercise {
   name: string;
@@ -306,6 +314,24 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     setSkipIndex(null);
   };
 
+  // Drag-to-reorder sensors. TouchSensor with a 200ms hold so a tap on the
+  // card's buttons doesn't start a drag — press-and-hold to drag on mobile.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setExercises((prev) => {
+      const oldIndex = prev.findIndex((e) => e.name === active.id);
+      const newIndex = prev.findIndex((e) => e.name === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
+
   // Add exercise modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState("");
@@ -337,17 +363,6 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     setExercises((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], sets: next[index].sets + 1 };
-      return next;
-    });
-  };
-
-  // Move an exercise up or down in the list
-  const moveExercise = (index: number, direction: "up" | "down") => {
-    setExercises((prev) => {
-      const next = [...prev];
-      const swapWith = direction === "up" ? index - 1 : index + 1;
-      if (swapWith < 0 || swapWith >= next.length) return prev;
-      [next[index], next[swapWith]] = [next[swapWith], next[index]];
       return next;
     });
   };
@@ -486,57 +501,25 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         <p className="text-sm text-gray-400">{planDay.muscle_focus}</p>
       </div>
 
-      <div className="space-y-4 mb-6">
-        {exercises.map((exercise, i) => {
-          const log = logs.find((l) => l.exercise_name === exercise.name);
-          return (
-            <div key={`${exercise.name}-${i}`} className="relative">
-              {/* Reorder buttons */}
-              <div className="absolute -left-1 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 z-10">
-                <button
-                  onClick={() => moveExercise(i, "up")}
-                  disabled={i === 0}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-white disabled:opacity-20 text-xs"
-                  title="Move up"
-                >↑</button>
-                <button
-                  onClick={() => moveExercise(i, "down")}
-                  disabled={i === exercises.length - 1}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-white disabled:opacity-20 text-xs"
-                  title="Move down"
-                >↓</button>
-              </div>
-
-              {/* Skip button – top right only */}
-              <div className="absolute -right-1 -top-1 z-10">
-                <button
-                  onClick={() => setSkipIndex(i)}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
-                  title="Skip exercise"
-                >✕</button>
-              </div>
-
-              <div className="pl-7">
-                <ExerciseCard
-                  exercise={exercise}
-                  sessionId={sessionId}
-                  existingLog={log}
-                  onLogUpdated={updateLog}
-                  onAddSet={() => addSetToExercise(i)}
-                />
-                {/* Change exercise – below the card, no overlap */}
-                <button
-                  onClick={() => swapExercise(i)}
-                  disabled={swappingIndex === i}
-                  className="mt-1 w-full text-xs text-gray-600 hover:text-orange-400 transition-colors py-1 disabled:opacity-50"
-                >
-                  {swappingIndex === i ? "Finding alternative…" : "↻ Change exercise"}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={exercises.map((e) => e.name)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-4 mb-6">
+            {exercises.map((exercise, i) => (
+              <SortableExerciseItem
+                key={exercise.name}
+                exercise={exercise}
+                log={logs.find((l) => l.exercise_name === exercise.name)}
+                sessionId={sessionId}
+                swapping={swappingIndex === i}
+                onLogUpdated={updateLog}
+                onAddSet={() => addSetToExercise(i)}
+                onSwap={() => swapExercise(i)}
+                onSkip={() => setSkipIndex(i)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Quick Add — hidden entirely during a pure-cardio session (FIX 5.2) */}
       {exercises.length > 0 && exercises.every((ex) => isCardioExercise(ex.name)) ? null : (
@@ -763,6 +746,70 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         </div>
       )}
     </main>
+  );
+}
+
+// A single draggable exercise row. The grip handle (⠿) on the left starts the
+// drag; press-and-hold on touch. The card buttons stay fully tappable.
+function SortableExerciseItem({
+  exercise, log, sessionId, swapping, onLogUpdated, onAddSet, onSwap, onSkip,
+}: {
+  exercise: Exercise;
+  log?: ExerciseLog;
+  sessionId: string;
+  swapping: boolean;
+  onLogUpdated: (l: ExerciseLog) => void;
+  onAddSet: () => void;
+  onSwap: () => void;
+  onSkip: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exercise.name });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 20 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="absolute -left-1 top-1/2 -translate-y-1/2 z-10 flex h-8 w-6 items-center justify-center rounded bg-gray-800 text-gray-500 hover:text-white cursor-grab active:cursor-grabbing touch-none"
+        title="Drag to reorder"
+        aria-label={`Reorder ${exercise.name}`}
+      >
+        ⠿
+      </button>
+
+      {/* Skip button */}
+      <div className="absolute -right-1 -top-1 z-10">
+        <button
+          onClick={onSkip}
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
+          title="Skip exercise"
+        >✕</button>
+      </div>
+
+      <div className="pl-7">
+        <ExerciseCard
+          exercise={exercise}
+          sessionId={sessionId}
+          existingLog={log}
+          onLogUpdated={onLogUpdated}
+          onAddSet={onAddSet}
+        />
+        <button
+          onClick={onSwap}
+          disabled={swapping}
+          className="mt-1 w-full text-xs text-gray-600 hover:text-orange-400 transition-colors py-1 disabled:opacity-50"
+        >
+          {swapping ? "Finding alternative…" : "↻ Change exercise"}
+        </button>
+      </div>
+    </div>
   );
 }
 
