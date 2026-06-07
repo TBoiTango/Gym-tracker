@@ -8,6 +8,7 @@ import type { Exercise, PlanDay, ExerciseLog } from "@/types";
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import Button from "@/components/ui/Button";
 import { MUSCLE_LABELS, exercisesForEquipment, type LibraryMuscle, type LibraryExercise } from "@/lib/exercise-library";
+import { isCardioExercise } from "@/lib/exercise-classifier";
 
 interface WarmupExercise {
   name: string;
@@ -537,7 +538,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         })}
       </div>
 
-      {/* Quick Add — day's muscle chips (permanent) + secondary Other button */}
+      {/* Quick Add — hidden entirely during a pure-cardio session (FIX 5.2) */}
+      {exercises.length > 0 && exercises.every((ex) => isCardioExercise(ex.name)) ? null : (
       <div className="mb-4">
         <p className="text-xs text-gray-500 mb-2">Quick Add</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -560,6 +562,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
           </button>
         </div>
       </div>
+      )}
 
       {/* Add Exercise button */}
       <button

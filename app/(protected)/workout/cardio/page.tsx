@@ -202,6 +202,18 @@ export default function CardioSessionPage() {
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = async () => {
     if (!type) return;
+
+    // FIX 6: sanity check — confirm any cardio session over 90 minutes
+    const totalMins =
+      type === "treadmill" ? Math.round(tmTotal / 60) :
+      type === "row" ? Math.round(rowTotal / 60) :
+      type === "stairs" ? Math.round(stairsTotal / 60) :
+      durationMins;
+    if (totalMins > 90) {
+      const ok = window.confirm(`That's ${totalMins} minutes of cardio — longer than 90 min. Save it anyway?`);
+      if (!ok) return;
+    }
+
     setSaving(true);
     setError("");
 

@@ -152,6 +152,12 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
   const totalTime = intervals.reduce((s, iv) => s + iv.durationSec, 0) * rounds;
 
   const logIntervals = async () => {
+    // FIX 6: sanity check — confirm anything over 90 minutes total
+    const totalMinutes = Math.round(totalTime / 60);
+    if (totalMinutes > 90) {
+      const ok = window.confirm(`That's ${totalMinutes} minutes of cardio — longer than 90 min. Save it anyway?`);
+      if (!ok) return;
+    }
     setSaving(true);
     setSaveError("");
     const payload = {
@@ -299,7 +305,7 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
 
           {saveError && <p className="mb-2 text-xs text-red-400 text-center">{saveError}</p>}
 
-          <button onClick={logIntervals} disabled={saving} className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 transition-colors">
+          <button onClick={logIntervals} disabled={saving} className="w-full rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600 active:bg-orange-700 disabled:opacity-50 transition-colors">
             {saving ? "Saving…" : "Log Intervals ✓"}
           </button>
         </>
