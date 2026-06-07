@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Exercise, PlanDay, ExerciseLog } from "@/types";
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import Button from "@/components/ui/Button";
+import { MUSCLE_LABELS, exercisesForEquipment, type LibraryMuscle, type LibraryExercise } from "@/lib/exercise-library";
 
 interface WarmupExercise {
   name: string;
@@ -62,6 +63,27 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       .catch(() => setWarmup(null))
       .finally(() => setWarmupLoading(false));
   }, []);
+
+  // User equipment (fetched once) — used by the Quick Add "Other" library modal
+  const [userEquipment, setUserEquipment] = useState<string[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: gym } = await supabase
+        .from("user_gyms")
+        .select("equipment_list")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setUserEquipment((gym?.equipment_list as string[]) ?? []);
+    })();
+  }, []);
+
+  // Quick Add "Other" modal state
+  const [showOtherModal, setShowOtherModal] = useState(false);
+  const [otherMuscle, setOtherMuscle] = useState<LibraryMuscle | null>(null);
 
   // Swap exercise state
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
@@ -211,10 +233,55 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
       // Track this name so the log entry gets marked user_added: true
       setQuickAddedNames((prev) => new Set(prev).add(newExercise.name));
-      setExercises((prev) => [...prev, newExercise]);
+      insertExercise(newExercise);
     } finally {
       setQuickAddLoading(null);
     }
+  };
+
+  // Insert a new exercise directly AFTER the last completed exercise (FIX 5.1),
+  // so added work appears "up next" rather than buried at the bottom.
+  const insertExercise = (ex: Exercise) => {
+    setExercises((prev) => {
+      // Find index of the last exercise that has all its sets logged
+      let lastCompleted = -1;
+      for (let i = 0; i < prev.length; i++) {
+        const log = logs.find((l) => l.exercise_name === prev[i].name);
+        if ((log?.sets_completed ?? 0) >= prev[i].sets) lastCompleted = i;
+      }
+      const insertAt = lastCompleted + 1; // right after last completed (0 if none done)
+      const next = [...prev];
+      next.splice(insertAt, 0, ex);
+      return next;
+    });
+  };
+
+  // Add an exercise chosen from the static library (Quick Add → Other modal)
+  const addLibraryExercise = async (libEx: LibraryExercise) => {
+    const ex: Exercise = {
+      name: libEx.name,
+      sets: libEx.defaultSets,
+      rep_range: libEx.defaultReps,
+      rest_seconds: 60,
+      coaching_note: "",
+    };
+    // Persist to the per-day pool so it can rotate into future sessions
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("user_exercise_pool").upsert({
+        user_id: user.id,
+        day_type: planDay.day_name,
+        exercise_name: ex.name,
+        sets: ex.sets,
+        rep_range: ex.rep_range,
+        rest_seconds: ex.rest_seconds,
+        coaching_note: "",
+      }, { onConflict: "user_id,day_type,exercise_name" });
+    }
+    setQuickAddedNames((prev) => new Set(prev).add(ex.name));
+    insertExercise(ex);
+    setShowOtherModal(false);
+    setOtherMuscle(null);
   };
 
   // Skip exercise state
@@ -470,10 +537,10 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         })}
       </div>
 
-      {/* Quick Add by muscle group */}
+      {/* Quick Add — day's muscle chips (permanent) + secondary Other button */}
       <div className="mb-4">
         <p className="text-xs text-gray-500 mb-2">Quick Add</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {quickAddGroups.map(({ label, muscle, subFocus }) => (
             <button
               key={label}
@@ -484,6 +551,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
               {quickAddLoading === label ? "Adding…" : `+ ${label}`}
             </button>
           ))}
+          {/* Secondary "Other" — opens the full muscle library modal */}
+          <button
+            onClick={() => { setShowOtherModal(true); setOtherMuscle(null); }}
+            className="rounded-full border border-dashed border-gray-700 px-3 py-1.5 text-xs text-gray-500 hover:border-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Other…
+          </button>
         </div>
       </div>
 
@@ -619,6 +693,69 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
             >
               Add to Workout
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add "Other" — full muscle library modal */}
+      {showOtherModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setShowOtherModal(false)}>
+          <div
+            className="w-full max-w-lg rounded-t-2xl bg-gray-900 border border-gray-700 p-6 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                {otherMuscle && (
+                  <button onClick={() => setOtherMuscle(null)} className="text-gray-500 hover:text-white text-sm">←</button>
+                )}
+                <h2 className="text-lg font-bold">
+                  {otherMuscle ? MUSCLE_LABELS.find((m) => m.id === otherMuscle)?.label : "Add Any Exercise"}
+                </h2>
+              </div>
+              <button onClick={() => setShowOtherModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            {/* Step 1: pick a muscle group */}
+            {!otherMuscle && (
+              <div className="grid grid-cols-2 gap-2">
+                {MUSCLE_LABELS.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setOtherMuscle(m.id)}
+                    className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-4 text-left text-sm font-semibold text-gray-200 hover:border-orange-500 hover:text-orange-400 transition-colors"
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Step 2: pick an exercise from that muscle group */}
+            {otherMuscle && (() => {
+              const list = exercisesForEquipment(otherMuscle, userEquipment);
+              const dayAllows = dayMuscles.length === 0 || dayMuscles.includes(otherMuscle) || otherMuscle === "abs and core";
+              return (
+                <div className="space-y-2">
+                  {!dayAllows && (
+                    <p className="text-xs text-yellow-400 mb-2">This targets a different muscle group than today&apos;s session.</p>
+                  )}
+                  {list.length === 0 && (
+                    <p className="text-sm text-gray-500">No exercises available with your saved equipment for this group.</p>
+                  )}
+                  {list.map((ex) => (
+                    <button
+                      key={ex.name}
+                      onClick={() => addLibraryExercise(ex)}
+                      className="w-full flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-left hover:border-orange-500 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-gray-200">{ex.name}</span>
+                      <span className="text-xs text-gray-500">{ex.defaultSets} × {ex.defaultReps}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
