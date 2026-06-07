@@ -71,8 +71,6 @@ export default function WorkoutPage() {
     poolExercises: { exercise_name: string; sets: number; rep_range: string; rest_seconds: number; coaching_note: string }[];
   } | null>(null);
   const [adaptiveLoading, setAdaptiveLoading] = useState(false);
-  // Debug: exercises excluded from generation due to recent use (temporary, for verification)
-  const [excludedExercises, setExcludedExercises] = useState<string[]>([]);
 
   // Persist state to sessionStorage whenever key values change
   useEffect(() => {
@@ -189,9 +187,6 @@ export default function WorkoutPage() {
           }
         }
 
-        // Preview the exclusion list for the debug banner using the real rule
-        const excludedPreview = await computeExcludedExercises(selectedDay.day_name);
-        setExcludedExercises(excludedPreview);
 
         // Pool exercises for this day type, least-recently-used first
         const { data: pool } = await supabase
@@ -284,7 +279,6 @@ export default function WorkoutPage() {
 
     const recentlyUsedExercises = await computeExcludedExercises(selectedDay.day_name);
     console.log(`[generate] recently_used_exercises being sent to Claude (${recentlyUsedExercises.length}):`, recentlyUsedExercises);
-    setExcludedExercises(recentlyUsedExercises);
 
     const res = await fetch("/api/generate-day", {
       method: "POST",
@@ -588,18 +582,6 @@ export default function WorkoutPage() {
             )}
             {adaptiveLoading && (
               <div className="h-12 rounded-xl bg-gray-800 animate-pulse" />
-            )}
-
-            {/* DEBUG: shows exercises excluded from generation due to recent use */}
-            {excludedExercises.length > 0 && (
-              <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
-                <p className="text-xs text-yellow-400/80 font-semibold mb-1">
-                  🔧 DEBUG · Won&apos;t repeat ({excludedExercises.length}) — core from last 2 days + lifts from this week&apos;s same-category day:
-                </p>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  {excludedExercises.join(", ")}
-                </p>
-              </div>
             )}
 
             {error && <p className="text-sm text-red-400">{error}</p>}

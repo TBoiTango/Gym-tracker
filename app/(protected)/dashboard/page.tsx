@@ -7,6 +7,7 @@ import WeeklyRing from "@/components/dashboard/WeeklyRing";
 import StreakCounter from "@/components/dashboard/StreakCounter";
 import PlanSuggestionBanner from "@/components/dashboard/PlanSuggestionBanner";
 import SignOutButton from "@/components/dashboard/SignOutButton";
+import RestartWeekButton from "@/components/dashboard/RestartWeekButton";
 
 export default async function DashboardPage() {
   const supabase = createServerClient();
@@ -49,10 +50,15 @@ export default async function DashboardPage() {
   // Only redirect to setup/plan if user has a split-based style but no plan
   if (!plan && workoutStyle === "split") redirect("/setup/plan");
 
-  // Completed sessions in the last 7 days
+  // "Restart week" sets profile.week_start_at — when present, the weekly ring and
+  // the split rotation only count sessions completed since that timestamp.
+  // Falls back to a rolling 7-day window (ring) / all sessions (rotation) when unset.
+  const weekStartAt = (profile as { week_start_at?: string | null } | null)?.week_start_at ?? null;
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const ringStart = weekStartAt ?? oneWeekAgo;
+
   const completedThisWeek = sessions.filter(
-    (s) => s.completed_at && s.started_at >= oneWeekAgo
+    (s) => s.completed_at && s.started_at >= ringStart
   ).length;
 
   const planDays = plan
@@ -62,10 +68,13 @@ export default async function DashboardPage() {
 
   // Determine today's planned workout day using a simple rotation (split users only).
   // Exclude rest days and bonus sessions — they don't advance the split.
+  // If the week was restarted, only count sessions since week_start_at so the
+  // rotation goes back to day 1.
   const completedSessions = sessions.filter(
     (s) => s.completed_at &&
     (s as { session_type?: string }).session_type !== "rest" &&
-    (s as { session_type?: string }).session_type !== "bonus"
+    (s as { session_type?: string }).session_type !== "bonus" &&
+    (!weekStartAt || s.started_at >= weekStartAt)
   );
   const todayIndex = planDays.length > 0 ? completedSessions.length % planDays.length : 0;
   const todayPlan = planDays[todayIndex] ?? null;
@@ -96,6 +105,9 @@ export default async function DashboardPage() {
       {/* Weekly progress ring */}
       <Card>
         <WeeklyRing completed={completedThisWeek} target={weeklyTarget} />
+        <div className="mt-3 flex justify-center">
+          <RestartWeekButton />
+        </div>
       </Card>
 
       {/* Today's workout CTA — split vs flexible */}
