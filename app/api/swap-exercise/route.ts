@@ -139,16 +139,34 @@ Return ONLY valid JSON, no markdown, no explanation:
 
     let exercise = await attemptSwap();
 
-    // Validate the returned exercise targets the correct muscle group
+    // Validate attempt 1
     const returnedMuscle = inferMuscleGroup(exercise.name as string, targetMuscle);
-    console.log(`[swap-exercise] Requested: "${targetMuscle}", got: "${exercise.name}" → inferred: "${returnedMuscle}"`);
+    console.log(`[swap-exercise] Attempt 1 — requested: "${targetMuscle}", got: "${exercise.name}" → inferred: "${returnedMuscle}"`);
 
     if (returnedMuscle !== targetMuscle) {
-      console.warn(`[swap-exercise] Muscle mismatch — retrying with stricter prompt`);
+      console.warn(`[swap-exercise] Attempt 1 MISMATCH ("${returnedMuscle}" ≠ "${targetMuscle}") — retrying with stricter prompt`);
       exercise = await attemptSwap(true);
 
       const retryMuscle = inferMuscleGroup(exercise.name as string, targetMuscle);
-      console.log(`[swap-exercise] Retry result: "${exercise.name}" → inferred: "${retryMuscle}"`);
+      console.log(`[swap-exercise] Attempt 2 — got: "${exercise.name}" → inferred: "${retryMuscle}"`);
+
+      if (retryMuscle !== targetMuscle) {
+        console.warn(`[swap-exercise] Attempt 2 MISMATCH ("${retryMuscle}" ≠ "${targetMuscle}") — final attempt`);
+        exercise = await attemptSwap(true);
+
+        const finalMuscle = inferMuscleGroup(exercise.name as string, targetMuscle);
+        console.log(`[swap-exercise] Attempt 3 — got: "${exercise.name}" → inferred: "${finalMuscle}"`);
+
+        if (finalMuscle !== targetMuscle) {
+          console.error(`[swap-exercise] All 3 attempts returned wrong muscle group. Returning attempt 3 result: "${exercise.name}" (${finalMuscle})`);
+        } else {
+          console.log(`[swap-exercise] ✓ Attempt 3 passed muscle validation.`);
+        }
+      } else {
+        console.log(`[swap-exercise] ✓ Attempt 2 passed muscle validation.`);
+      }
+    } else {
+      console.log(`[swap-exercise] ✓ Attempt 1 passed muscle validation.`);
     }
 
     return NextResponse.json(exercise);

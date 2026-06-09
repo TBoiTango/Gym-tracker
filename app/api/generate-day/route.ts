@@ -133,7 +133,8 @@ General rules:
 2. Tailor rep ranges and rest to the goal: strength (3-6 reps, 75-90s rest), hypertrophy (8-15 reps, 60-75s rest), endurance (15-25 reps, 30-45s rest). MAXIMUM rest_seconds is 90 — never exceed this.
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
-5. Return ONLY valid JSON — no markdown, no explanation, no code fences.${recentExclusionSection}
+5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
+6. UNIQUENESS — this is a hard rule: each exercise must appear ONLY ONCE in the workout. Do not repeat any exercise name, even with different rep ranges or sets. Every entry in the exercises array must be a completely different exercise.${recentExclusionSection}
 
 Return exactly this JSON shape (a single day object):
 {
@@ -232,6 +233,71 @@ Return ONLY a JSON array, same length and order as the wrong list:
         }
       } else {
         console.log(`[generate-day] ✓ FIX1 — all exercises match allowed muscles for "${day_name}".`);
+      }
+    }
+
+    // ── FIX 2: De-duplicate exercises within the same session ────────────────
+    // Claude occasionally generates the same exercise twice (e.g. Leg Press at
+    // positions 1 and 3). Scan for duplicate names and replace extras with a
+    // different exercise targeting the same muscle group.
+    if (dayData.exercises?.length) {
+      const seen = new Map<string, number>(); // normalized name → first index
+      const dupeIndices: number[] = [];
+
+      dayData.exercises.forEach((ex, i) => {
+        const key = ex.name.toLowerCase().trim();
+        if (seen.has(key)) {
+          dupeIndices.push(i);
+          console.warn(`[generate-day] DEDUP — duplicate found: "${ex.name}" at index ${i} (first seen at ${seen.get(key)})`);
+        } else {
+          seen.set(key, i);
+        }
+      });
+
+      if (dupeIndices.length > 0) {
+        const uniqueNames = dayData.exercises
+          .filter((_, i) => !dupeIndices.includes(i))
+          .map((ex) => ex.name);
+
+        const dupesToReplace = dupeIndices.map((i) => dayData.exercises[i]);
+
+        const dedupePrompt = `You are an expert coach fixing a workout that has duplicate exercises.
+
+The workout targets: ${muscle_focus}
+Available equipment: ${equipmentList}
+
+These exercises are duplicates and must each be replaced with a UNIQUE exercise not already in the workout:
+${dupesToReplace.map((ex) => `  - "${ex.name}" (targets ${inferExerciseMuscle(ex.name)} — replacement MUST target same muscle)`).join("\n")}
+
+Do NOT suggest any of these (already in the workout):
+${uniqueNames.map((n) => `  - ${n}`).join("\n")}
+
+Rules:
+1. Each replacement must target the SAME primary muscle group as the exercise it replaces.
+2. Each replacement must be a genuinely different exercise.
+3. Must be possible with equipment: ${equipmentList}.
+4. Return ONLY a JSON array with exactly ${dupesToReplace.length} replacement(s):
+[{ "name": "...", "sets": 3, "rep_range": "8-12", "rest_seconds": 60, "coaching_note": "..." }]`;
+
+        try {
+          const rawDedup = await askClaude(dedupePrompt);
+          const replacements = JSON.parse(extractJSON(rawDedup)) as PlanDay["exercises"];
+          let ri = 0;
+          dayData.exercises = dayData.exercises.map((ex, i) => {
+            if (dupeIndices.includes(i) && replacements[ri]) {
+              const repl = replacements[ri++];
+              console.log(`[generate-day] DEDUP — replaced duplicate "${ex.name}" → "${repl.name}"`);
+              return repl;
+            }
+            return ex;
+          });
+        } catch (e) {
+          console.error("[generate-day] DEDUP replacement failed, removing duplicates:", e);
+          // Fallback: just drop the duplicates rather than show the same exercise twice
+          dayData.exercises = dayData.exercises.filter((_, i) => !dupeIndices.includes(i));
+        }
+      } else {
+        console.log(`[generate-day] ✓ DEDUP — no duplicate exercises found.`);
       }
     }
 
