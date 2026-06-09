@@ -1,4 +1,4 @@
-// Edit a workout session — adjust reps/weights, delete exercises, rename, or mark complete.
+// Edit a workout session — adjust reps/weights, rename exercises, delete, or mark complete.
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,8 +17,6 @@ export default function EditSessionPage() {
   const supabase = createClient();
 
   const [planDay, setPlanDay] = useState("");
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState("");
   const [completedAt, setCompletedAt] = useState<string | null>(null);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,15 +25,18 @@ export default function EditSessionPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
 
+  // Per-exercise rename state: logId -> draft name string (undefined = not editing)
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       const [sessionRes, logsRes] = await Promise.all([
         supabase.from("workout_sessions").select("plan_day, completed_at").eq("id", sessionId).single(),
         supabase.from("exercise_logs").select("*").eq("session_id", sessionId),
       ]);
-      const day = sessionRes.data?.plan_day ?? "";
-      setPlanDay(day);
-      setNameInput(day);
+      setPlanDay(sessionRes.data?.plan_day ?? "");
       setCompletedAt(sessionRes.data?.completed_at ?? null);
       setLogs(logsRes.data ?? []);
       setLoading(false);
@@ -43,12 +44,25 @@ export default function EditSessionPage() {
     load();
   }, [sessionId]);
 
-  const saveName = async () => {
-    const trimmed = nameInput.trim();
-    if (!trimmed || trimmed === planDay) { setEditingName(false); return; }
-    await supabase.from("workout_sessions").update({ plan_day: trimmed }).eq("id", sessionId);
-    setPlanDay(trimmed);
-    setEditingName(false);
+  const startRename = (log: ExerciseLog) => {
+    setRenamingId(log.id);
+    setRenameInput(log.exercise_name);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameInput("");
+  };
+
+  const saveRename = async (logId: string) => {
+    const trimmed = renameInput.trim();
+    const current = logs.find((l) => l.id === logId)?.exercise_name;
+    if (!trimmed || trimmed === current) { cancelRename(); return; }
+    setRenameSaving(true);
+    await supabase.from("exercise_logs").update({ exercise_name: trimmed }).eq("id", logId);
+    setLogs((prev) => prev.map((l) => l.id === logId ? { ...l, exercise_name: trimmed } : l));
+    setRenameSaving(false);
+    setRenamingId(null);
   };
 
   const markComplete = async () => {
@@ -120,36 +134,12 @@ export default function EditSessionPage() {
       </Link>
 
       <h1 className="text-2xl font-bold mb-1">Edit Session</h1>
-
-      {/* Editable workout name */}
-      {editingName ? (
-        <div className="flex items-center gap-2 mb-2">
-          <input
-            autoFocus
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
-            className="flex-1 rounded-lg border border-orange-500 bg-gray-800 px-3 py-1.5 text-sm text-white focus:outline-none"
-          />
-          <button onClick={saveName} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">Save</button>
-          <button onClick={() => { setEditingName(false); setNameInput(planDay); }} className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-3 mb-2">
-          <p className="text-gray-300 text-sm font-medium">{planDay}</p>
-          <button
-            onClick={() => { setNameInput(planDay); setEditingName(true); }}
-            className="rounded-lg border border-gray-600 px-2.5 py-1 text-xs text-gray-300 hover:border-orange-500 hover:text-orange-400 transition-colors"
-          >
-            ✎ Rename
-          </button>
-        </div>
-      )}
-
-      {/* Completion status + mark complete button */}
       <div className="flex items-center gap-3 mb-6">
+        <p className="text-gray-400 text-sm">{planDay}</p>
         <span className={`text-xs font-semibold ${completedAt ? "text-green-400" : "text-yellow-400"}`}>
-          {completedAt ? `Completed ${new Date(completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Incomplete"}
+          {completedAt
+            ? `✓ Completed ${new Date(completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+            : "Incomplete"}
         </span>
         {!completedAt && (
           <button
@@ -169,20 +159,58 @@ export default function EditSessionPage() {
       <div className="space-y-4 mb-8">
         {logs.map((log) => {
           const isCardio = isCardioExercise(log.exercise_name);
+          const isRenaming = renamingId === log.id;
+
           return (
             <Card key={log.id}>
-              {/* Header row: name + delete button */}
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-semibold">{log.exercise_name}</p>
-                  {isCardio && (
+              {/* Header row: name (editable) + delete button */}
+              <div className="flex items-start justify-between mb-3 gap-3">
+                <div className="flex-1 min-w-0">
+                  {isRenaming ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={renameInput}
+                        onChange={(e) => setRenameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveRename(log.id);
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                        className="flex-1 rounded-lg border border-orange-500 bg-gray-800 px-2.5 py-1.5 text-sm font-semibold text-white focus:outline-none"
+                      />
+                      <button
+                        onClick={() => saveRename(log.id)}
+                        disabled={renameSaving}
+                        className="text-xs text-orange-400 hover:text-orange-300 font-semibold shrink-0"
+                      >
+                        {renameSaving ? "…" : "Save"}
+                      </button>
+                      <button
+                        onClick={cancelRename}
+                        className="text-xs text-gray-500 hover:text-gray-300 shrink-0"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold">{log.exercise_name}</p>
+                      <button
+                        onClick={() => startRename(log)}
+                        className="rounded border border-gray-700 px-2 py-0.5 text-xs text-gray-400 hover:border-orange-500 hover:text-orange-400 transition-colors"
+                      >
+                        ✎ Rename
+                      </button>
+                    </div>
+                  )}
+                  {isCardio && !isRenaming && (
                     <p className="text-xs text-blue-400 mt-0.5">Cardio exercise</p>
                   )}
                 </div>
                 <button
                   onClick={() => deleteLog(log.id)}
                   disabled={deleting === log.id}
-                  className="rounded-lg border border-gray-700 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-900/20 transition-colors disabled:opacity-40"
+                  className="rounded-lg border border-gray-700 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-900/20 transition-colors disabled:opacity-40 shrink-0"
                 >
                   {deleting === log.id ? "…" : "Delete"}
                 </button>
