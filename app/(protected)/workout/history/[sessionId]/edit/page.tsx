@@ -122,32 +122,29 @@ export default function EditSessionPage() {
       <h1 className="text-2xl font-bold mb-1">Edit Session</h1>
 
       {/* Editable workout name */}
-      <div className="flex items-center gap-2 mb-2">
-        {editingName ? (
-          <>
-            <input
-              autoFocus
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
-              className="flex-1 rounded-lg border border-orange-500 bg-gray-800 px-3 py-1.5 text-sm text-white focus:outline-none"
-            />
-            <button onClick={saveName} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">Save</button>
-            <button onClick={() => { setEditingName(false); setNameInput(planDay); }} className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
-          </>
-        ) : (
-          <>
-            <p className="text-gray-400 text-sm">{planDay}</p>
-            <button
-              onClick={() => { setNameInput(planDay); setEditingName(true); }}
-              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
-              title="Rename workout"
-            >
-              ✎
-            </button>
-          </>
-        )}
-      </div>
+      {editingName ? (
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+            className="flex-1 rounded-lg border border-orange-500 bg-gray-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+          />
+          <button onClick={saveName} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">Save</button>
+          <button onClick={() => { setEditingName(false); setNameInput(planDay); }} className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 mb-2">
+          <p className="text-gray-300 text-sm font-medium">{planDay}</p>
+          <button
+            onClick={() => { setNameInput(planDay); setEditingName(true); }}
+            className="rounded-lg border border-gray-600 px-2.5 py-1 text-xs text-gray-300 hover:border-orange-500 hover:text-orange-400 transition-colors"
+          >
+            ✎ Rename
+          </button>
+        </div>
+      )}
 
       {/* Completion status + mark complete button */}
       <div className="flex items-center gap-3 mb-6">
