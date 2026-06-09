@@ -1,4 +1,4 @@
-// Edit a completed workout session — adjust reps/weights, delete individual exercises.
+// Edit a workout session — adjust reps/weights, delete exercises, rename, or mark complete.
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,24 +17,47 @@ export default function EditSessionPage() {
   const supabase = createClient();
 
   const [planDay, setPlanDay] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [completedAt, setCompletedAt] = useState<string | null>(null);
   const [logs, setLogs] = useState<ExerciseLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const [sessionRes, logsRes] = await Promise.all([
-        supabase.from("workout_sessions").select("plan_day").eq("id", sessionId).single(),
+        supabase.from("workout_sessions").select("plan_day, completed_at").eq("id", sessionId).single(),
         supabase.from("exercise_logs").select("*").eq("session_id", sessionId),
       ]);
-      setPlanDay(sessionRes.data?.plan_day ?? "");
+      const day = sessionRes.data?.plan_day ?? "";
+      setPlanDay(day);
+      setNameInput(day);
+      setCompletedAt(sessionRes.data?.completed_at ?? null);
       setLogs(logsRes.data ?? []);
       setLoading(false);
     };
     load();
   }, [sessionId]);
+
+  const saveName = async () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === planDay) { setEditingName(false); return; }
+    await supabase.from("workout_sessions").update({ plan_day: trimmed }).eq("id", sessionId);
+    setPlanDay(trimmed);
+    setEditingName(false);
+  };
+
+  const markComplete = async () => {
+    setCompleting(true);
+    const now = new Date().toISOString();
+    await supabase.from("workout_sessions").update({ completed_at: now }).eq("id", sessionId);
+    setCompletedAt(now);
+    setCompleting(false);
+  };
 
   // Update a specific set's weight or reps
   const updateSet = (logId: string, setIndex: number, field: "weight" | "reps", value: number) => {
@@ -97,7 +120,50 @@ export default function EditSessionPage() {
       </Link>
 
       <h1 className="text-2xl font-bold mb-1">Edit Session</h1>
-      <p className="text-gray-400 text-sm mb-6">{planDay}</p>
+
+      {/* Editable workout name */}
+      <div className="flex items-center gap-2 mb-2">
+        {editingName ? (
+          <>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+              className="flex-1 rounded-lg border border-orange-500 bg-gray-800 px-3 py-1.5 text-sm text-white focus:outline-none"
+            />
+            <button onClick={saveName} className="text-xs text-orange-400 hover:text-orange-300 font-semibold">Save</button>
+            <button onClick={() => { setEditingName(false); setNameInput(planDay); }} className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-400 text-sm">{planDay}</p>
+            <button
+              onClick={() => { setNameInput(planDay); setEditingName(true); }}
+              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+              title="Rename workout"
+            >
+              ✎
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Completion status + mark complete button */}
+      <div className="flex items-center gap-3 mb-6">
+        <span className={`text-xs font-semibold ${completedAt ? "text-green-400" : "text-yellow-400"}`}>
+          {completedAt ? `Completed ${new Date(completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Incomplete"}
+        </span>
+        {!completedAt && (
+          <button
+            onClick={markComplete}
+            disabled={completing}
+            className="rounded-lg border border-green-700 px-3 py-1 text-xs text-green-400 hover:bg-green-900/20 transition-colors disabled:opacity-50"
+          >
+            {completing ? "Saving…" : "Mark as Complete"}
+          </button>
+        )}
+      </div>
 
       {logs.length === 0 && (
         <p className="text-gray-500 text-sm">No exercises logged in this session.</p>

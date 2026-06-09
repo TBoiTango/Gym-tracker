@@ -9,6 +9,7 @@ import type { Exercise, ExerciseLog } from "@/types";
 import Card from "@/components/ui/Card";
 import RestTimer from "@/components/workout/RestTimer";
 import { isCardioExercise, isTreadmillExercise } from "@/lib/exercise-classifier";
+import { findBestMatch, extractKeyTerms } from "@/lib/exercise-matcher";
 
 interface Props {
   exercise: Exercise;
@@ -489,9 +490,9 @@ export default function ExerciseCard(props: Props) {
       const sessionIds = recentSessions.map((s) => s.id);
 
       // Step 2: find the most recent log for this exact exercise name in those sessions
-      const { data: lastLog, error: logErr } = await supabase
+      const { data: exactLog, error: logErr } = await supabase
         .from("exercise_logs")
-        .select("weight_per_set, reps_per_set, sets_completed, session_id")
+        .select("weight_per_set, reps_per_set, sets_completed, session_id, exercise_name")
         .eq("exercise_name", exercise.name)
         .in("session_id", sessionIds)
         .limit(1)
@@ -502,7 +503,40 @@ export default function ExerciseCard(props: Props) {
         return;
       }
 
-      console.log(`[ExerciseCard] Last log for "${exercise.name}":`, lastLog);
+      // Step 3: if no exact match, try fuzzy matching against all logged exercise names
+      let lastLog = exactLog;
+      let fuzzyMatchedName: string | null = null;
+
+      if (!lastLog?.weight_per_set?.length) {
+        const keyTerms = extractKeyTerms(exercise.name);
+        if (keyTerms.length > 0) {
+          const orFilter = keyTerms.map((t) => `exercise_name.ilike.%${t}%`).join(",");
+          const { data: candidates } = await supabase
+            .from("exercise_logs")
+            .select("weight_per_set, reps_per_set, sets_completed, session_id, exercise_name")
+            .in("session_id", sessionIds)
+            .or(orFilter)
+            .limit(60);
+
+          if (candidates?.length) {
+            const uniqueNames = Array.from(new Set(candidates.map((c) => c.exercise_name)));
+            const bestName = findBestMatch(exercise.name, uniqueNames);
+            if (bestName) {
+              // Pick the candidate from the most recent session (sessionIds is ordered newest-first)
+              const matches = candidates.filter((c) => c.exercise_name === bestName);
+              const orderedMatch = sessionIds
+                .map((sid) => matches.find((m) => m.session_id === sid))
+                .find(Boolean);
+              if (orderedMatch) {
+                lastLog = orderedMatch;
+                fuzzyMatchedName = bestName;
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`[ExerciseCard] Last log for "${exercise.name}":`, lastLog, fuzzyMatchedName ? `(fuzzy: "${fuzzyMatchedName}")` : "");
 
       if (!lastLog || !lastLog.weight_per_set?.length) {
         setLastSessionNote("First time — give it a shot 💪");
@@ -519,7 +553,8 @@ export default function ExerciseCard(props: Props) {
 
         // Nudge if they hit the top of their rep range
         const nudge = lastReps >= topRep && topRep > 0 ? " — ↑ Try adding 5 lbs today!" : "";
-        setLastSessionNote(`Last time: ${lastWeight} lbs × ${lastReps} reps${nudge}`);
+        const matchNote = fuzzyMatchedName ? ` (from "${fuzzyMatchedName}")` : "";
+        setLastSessionNote(`Last time: ${lastWeight} lbs × ${lastReps} reps${nudge}${matchNote}`);
         console.log(`[ExerciseCard] Pre-filled weight: ${lastWeight}, reps: ${lastReps}`);
       }
       if (lastReps > 0) setReps(lastReps);
