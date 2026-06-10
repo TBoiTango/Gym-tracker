@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { askClaude, extractJSON } from "@/lib/claude";
 import type { PlanDay } from "@/types";
 import { inferExerciseMuscle, allowedMusclesForDay } from "@/lib/exercise-classifier";
+import { formatBankForPrompt } from "@/lib/program-bank";
 
 export interface PoolExercise {
   exercise_name: string;
@@ -96,6 +97,12 @@ CORE SELECTION RULES:
 4. Choose based on available equipment.`
       : `No dedicated core exercises.`;
 
+    // Program bank — admin-curated exercise library injected into every session
+    const bankSection = formatBankForPrompt(day_name);
+    if (bankSection) {
+      console.log(`[generate-day] Injecting program bank for "${day_name}" (${bankSection.split("\n").length} lines)`);
+    }
+
     // Pool exercises the user has previously added — rotate 1-2 in naturally
     const poolSection = pool_exercises.length > 0
       ? `User-favourite exercises (previously added by this user for this day type, ordered by least-recently used first):
@@ -121,7 +128,7 @@ Cardio rules: ${cardioSection}
 
 Core rules: ${coreSection}
 
-${poolSection ? poolSection + "\n\n" : ""}EQUIPMENT VARIETY — read this first, it overrides everything else:
+${bankSection ? bankSection + "\n\n" : ""}${poolSection ? poolSection + "\n\n" : ""}EQUIPMENT VARIETY — read this first, it overrides everything else:
 - MAXIMUM 2 barbell exercises per session. Never more. This is a hard limit.
 - Every other exercise MUST use different equipment: dumbbells, cables, machines, or bodyweight.
 - Good Push Day: Barbell Bench Press → Dumbbell Shoulder Press → Cable Lateral Raise → Machine Chest Fly → Dumbbell Tricep Overhead Extension.

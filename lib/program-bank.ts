@@ -1,0 +1,157 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRAM BANK — Admin-curated exercise library
+// These exercises are drawn from the uploaded workout programs and are used
+// as a high-priority reference when generating any session.
+// To add more programs, just append entries to the relevant category array.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BankExercise {
+  name: string;
+  sets: number;
+  rep_range: string;
+  rest_seconds: number;
+  coaching_note: string;
+}
+
+// ── PUSH (Chest, Shoulders, Triceps) ─────────────────────────────────────────
+export const PUSH_BANK: BankExercise[] = [
+  // Chest — Compounds
+  { name: "Barbell Incline Bench Press",          sets: 4, rep_range: "5-7",   rest_seconds: 90, coaching_note: "Drive elbows down and back; lower the bar to upper chest with full control." },
+  { name: "Flat Barbell Bench Press",             sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Arch slightly, retract scapula, explode up and lower with a 3-sec eccentric." },
+  { name: "Flat Dumbbell Press",                  sets: 3, rep_range: "8-10",  rest_seconds: 75, coaching_note: "3-second eccentric; let the dumbbells stretch the chest at the bottom." },
+  { name: "Incline Dumbbell Press",               sets: 3, rep_range: "10-12", rest_seconds: 75, coaching_note: "Keep elbows at 45° and stop 2 reps short of failure for better recovery." },
+  { name: "Neutral Grip Dumbbell Press",          sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Squeeze the dumbbells together throughout the movement for peak chest contraction." },
+  { name: "Weighted Dips",                        sets: 3, rep_range: "8-12",  rest_seconds: 75, coaching_note: "Lean forward with chest bias; control the descent and get a full stretch at bottom." },
+  { name: "Hex Press",                            sets: 4, rep_range: "6-8",   rest_seconds: 75, coaching_note: "Press dumbbells together throughout — constant inward pressure isolates the sternal chest." },
+
+  // Chest — Isolation / Cables
+  { name: "Cable Fly Low to High",                sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Drive hands upward and together; 2-second squeeze at peak contraction." },
+  { name: "Cable Fly High to Low",                sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Slight forward lean, sweep hands down and together, full stretch at top." },
+  { name: "Cable Fly Mid",                        sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Keep a slight elbow bend; think hugging a tree, not pulling a weight." },
+  { name: "Cable Chest Press",                    sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Lean into the cable for constant tension; squeeze hard at lockout." },
+  { name: "Single Arm Dumbbell Chest Fly",        sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Control the arc; feel a full stretch at the bottom before contracting." },
+  { name: "Incline Cable Fly",                    sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Set the cable low, angle cable upward to upper chest; maintain tension throughout." },
+
+  // Shoulders — Compounds & Press
+  { name: "Overhead Dumbbell Shoulder Press",     sets: 3, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Stay upright, core braced; lower to ear height and press straight up." },
+  { name: "Seated Dumbbell Press",                sets: 5, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Heavy and controlled; full ROM from ear height to lockout." },
+  { name: "Standing Barbell Military Press",      sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Grip just outside shoulder width; core tight, slight hip extension at lockout." },
+  { name: "Arnold Press",                         sets: 3, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Rotate palms in as you lower; slow the descent to activate all three delt heads." },
+  { name: "Smith Machine Overhead Press",         sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Use a slightly wider grip than barbell; press through the crown of the head." },
+
+  // Shoulders — Lateral & Rear Delt
+  { name: "Dumbbell Lateral Raise",               sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Lead with your pinky (pinky-up cue) to pre-rotate the humerus and isolate the middle delt." },
+  { name: "Cable Lateral Raise",                  sets: 3, rep_range: "15-20", rest_seconds: 60, coaching_note: "Constant tension throughout; no swinging — slow controlled raise and lower." },
+  { name: "Lateral Raise Mechanical Drop Set",    sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Dumbbells to failure → immediately into partials → finish on cable. No rest between." },
+  { name: "Front Dumbbell Raise",                 sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Underhand grip (thumbs up) to spare the AC joint; controlled and explosive motion." },
+  { name: "Seated Incline Front Raise",           sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Chest down on incline bench, raise bar in front — isolates anterior delt with no momentum." },
+  { name: "Rear Delt Fly",                        sets: 4, rep_range: "15-20", rest_seconds: 60, coaching_note: "Chest-supported or cable; drive elbows back and out — squeeze rhomboids and rear delts." },
+  { name: "Upright Barbell Row",                  sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Wide grip to protect the AC joint; drive elbows high above wrists." },
+  { name: "Upright Cable Row",                    sets: 5, rep_range: "10-12", rest_seconds: 60, coaching_note: "Rope attachment; drive elbows to ear height, pause at top for a full trap and delt contraction." },
+  { name: "Face Pull",                            sets: 3, rep_range: "15-20", rest_seconds: 60, coaching_note: "Pull to forehead, externally rotate at the top; great for shoulder health and rear delt." },
+  { name: "Trap Shrug Dumbbell",                  sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Slow eccentric; pause at the top for a full trap contraction." },
+
+  // Triceps
+  { name: "Seated Overhead Dumbbell Extension",   sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Both hands on one dumbbell; lower behind the head for a deep long-head stretch." },
+  { name: "Single Arm Dumbbell Skull Crusher",    sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Isolate each arm; keep upper arm perpendicular to the bench and hinge only at the elbow." },
+  { name: "Close Grip Barbell Bench Press",       sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Hands slightly inside shoulder width; tuck elbows and lower with control." },
+  { name: "Kneeling Rope Pressdown",              sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Kneeling position removes momentum; focus on the stretch and full lockout." },
+  { name: "Overhead Rope Tricep Extension",       sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Hinge forward slightly; drive the rope handles apart at full extension." },
+  { name: "Reverse Grip Pressdown",               sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Underhand grip activates the lateral head; slow the return for more time under tension." },
+  { name: "Cable Skull Crusher",                  sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Lying on bench, bar from low cable pulley; 2 sets palms up, 2 sets palms down." },
+  { name: "Dumbbell Tate Press",                  sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Start like a skull crusher; flare elbows out toward chest — hits medial and lateral heads." },
+  { name: "V-Bar Pressdown Mechanical Drop Set",  sets: 3, rep_range: "8-8-8", rest_seconds: 60, coaching_note: "Wide grip ×8 → immediately close-grip ×8 → drop weight ×8. No rest between grips." },
+  { name: "Weighted Bench Dip",                   sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Keep chest upright and elbows tucked; lower until elbows hit 90° for tricep emphasis." },
+];
+
+// ── PULL (Back, Biceps) ───────────────────────────────────────────────────────
+export const PULL_BANK: BankExercise[] = [
+  // Back — Vertical Pull
+  { name: "Weighted Pull-Up",                     sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Full hang at the bottom, chin over bar at top; dead stop between reps." },
+  { name: "Wide Grip Lat Pulldown",               sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Lean back slightly, drive elbows down and back; squeeze lats hard at the bottom." },
+  { name: "V-Grip Lat Pulldown",                  sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Neutral grip attachment; focus on the mid-back and lower lats." },
+  { name: "Rope Lat Pulldown",                    sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Pull handles apart at the bottom to hit outer lats; full stretch at top." },
+  { name: "Straight Arm Lat Pressdown",           sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Arms stay straight the entire way; sweep the bar down in an arc to fully isolate lats." },
+  { name: "Side Lat Cable Pulldown",              sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Stand perpendicular to machine; pull down with one arm and focus on the lat stretch." },
+
+  // Back — Horizontal Pull / Rows
+  { name: "Barbell Row",                          sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Strict form, flat back; pull bar toward your waist, squeeze shoulder blades at the top." },
+  { name: "Underhand Barbell Row",                sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Reverse grip shifts emphasis to biceps and lower lats; full stretch at bottom." },
+  { name: "Chest Supported Dumbbell Row",         sets: 4, rep_range: "8-12",  rest_seconds: 75, coaching_note: "Chest on incline bench to eliminate momentum; full stretch and hard squeeze each rep." },
+  { name: "Chest Supported T-Bar Row",            sets: 3, rep_range: "10-12", rest_seconds: 75, coaching_note: "Keep chest on the pad; drive elbows back and squeeze the rhomboids at the top." },
+  { name: "Single Arm Dumbbell Row",              sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Brace on a bench; let the weight stretch the lat fully, then row to hip." },
+  { name: "Single Arm Cable Row with Rotation",   sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Slight torso rotation on each rep for full lat contraction; control the return." },
+  { name: "Seated Cable Row",                     sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Neutral grip, sit tall; drive elbows back past your torso and squeeze the mid-back." },
+
+  // Back — Hinge
+  { name: "Deadlift",                             sets: 5, rep_range: "4-6",   rest_seconds: 90, coaching_note: "Push the floor away; maintain a neutral spine and keep the bar close throughout." },
+  { name: "Romanian Deadlift",                    sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Hinge at the hips, soft knees; feel the hamstring stretch before driving hips forward." },
+  { name: "Back Extension with Barbell",          sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Hold barbell or plate on chest; full extension at top, neutral spine throughout." },
+
+  // Biceps
+  { name: "Barbell Curl",                         sets: 3, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Alternate close and wide grip across sets for full bicep development; no swinging." },
+  { name: "EZ Bar Curl",                          sets: 3, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Slightly supinated grip; controlled 2-second eccentric on every rep." },
+  { name: "Incline Dumbbell Curl",                sets: 3, rep_range: "10-12", rest_seconds: 60, coaching_note: "Lie back on incline; full hang at the bottom to stretch the long head before curling." },
+  { name: "Dumbbell Preacher Curl",               sets: 3, rep_range: "10-12", rest_seconds: 60, coaching_note: "3-second negative; focus on the eccentric for maximum bicep damage." },
+  { name: "Crossover Cable Curl",                 sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Palms face inward; cables cross slightly in front of the body for a peak contraction." },
+  { name: "Standing Cable Curl",                  sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Iso-hold at the top for 1 second; cable keeps tension on the bicep throughout." },
+  { name: "Reverse Grip Barbell Curl",            sets: 3, rep_range: "10-12", rest_seconds: 60, coaching_note: "Overhand grip targets brachialis and forearms; keep elbows pinned to the side." },
+  { name: "Zottman Curl",                         sets: 4, rep_range: "8-10",  rest_seconds: 60, coaching_note: "Curl up supinated, rotate to pronated at the top, lower overhand — hits both heads and forearms." },
+  { name: "Chin-Up to Failure",                   sets: 1, rep_range: "max",   rest_seconds: 60, coaching_note: "Underhand palms-facing-you grip; use as a burnout finisher." },
+  { name: "Preacher Curl Machine 21s",            sets: 3, rep_range: "21",    rest_seconds: 75, coaching_note: "7 bottom-range → 7 top-range → 7 full reps with no rest between — brutal pump set." },
+];
+
+// ── LEGS (Quads, Hamstrings, Glutes, Calves) ──────────────────────────────────
+export const LEGS_BANK: BankExercise[] = [
+  // Quad Dominant
+  { name: "Barbell Back Squat",                   sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Full depth; drive knees out and chest up. Controlled 2-sec descent." },
+  { name: "Front Squat with Pause",               sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "2-second pause at the bottom; elbows high, upright torso." },
+  { name: "Hack Squat",                           sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Last set use a slow eccentric; full depth, feet shoulder-width." },
+  { name: "Bulgarian Split Squat",                sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Rear foot elevated, drive through front heel; pause at the bottom for full glute stretch." },
+  { name: "Walking Lunge",                        sets: 3, rep_range: "20 steps", rest_seconds: 75, coaching_note: "Full stride length for hip engagement; keep chest upright throughout." },
+  { name: "Weighted Step-Up",                     sets: 4, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Drive through the heel of the elevated foot; fully extend the hip at the top." },
+  { name: "Leg Extension",                        sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Pause at the top for a full quad contraction; slow the eccentric to 3 seconds." },
+  { name: "Leg Press High and Narrow",            sets: 2, rep_range: "15-20", rest_seconds: 60, coaching_note: "Feet high and narrow for inner quad emphasis; go to failure on the last set." },
+  { name: "Leg Press",                            sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Keep heels down, drive knees forward; do not lock out at the top." },
+
+  // Hamstring Dominant
+  { name: "Romanian Deadlift",                    sets: 3, rep_range: "8-10",  rest_seconds: 75, coaching_note: "Push hips back and feel the hamstring stretch before driving hips forward." },
+  { name: "Seated Leg Curl",                      sets: 3, rep_range: "12-15", rest_seconds: 60, coaching_note: "Full stretch at the top, 2-second pause at peak contraction." },
+  { name: "Lying Leg Curl",                       sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "3-second eccentric for maximum hamstring activation; full hip extension at the start." },
+  { name: "Nordic Hamstring Curl",                sets: 3, rep_range: "5-8",   rest_seconds: 90, coaching_note: "Control the descent as slowly as possible; use hands to catch yourself at the bottom." },
+
+  // Glute Dominant
+  { name: "Glute Bridge with Barbell",            sets: 3, rep_range: "10-12", rest_seconds: 75, coaching_note: "Drive through heels; 2-second pause at the top with a hard glute squeeze." },
+  { name: "Hip Abduction Machine",                sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Full range of motion both in and out; pause at peak contraction each direction." },
+
+  // Calves
+  { name: "Standing Calf Raise",                  sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Full stretch at the bottom; 1-second pause at the top on every rep." },
+  { name: "Seated Calf Raise",                    sets: 4, rep_range: "15-20", rest_seconds: 45, coaching_note: "Slow eccentric; calves grow with high volume and full ROM." },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Map a day name to a bank category */
+export function getBankForDay(dayName: string): BankExercise[] {
+  const n = dayName.toLowerCase();
+  if (n.includes("push") || n.includes("chest") || n.includes("shoulder") || n.includes("tricep")) return PUSH_BANK;
+  if (n.includes("pull") || n.includes("back") || n.includes("bicep")) return PULL_BANK;
+  if (n.includes("leg") || n.includes("lower") || n.includes("squat")) return LEGS_BANK;
+  return [];
+}
+
+/**
+ * Return a formatted string for the generate-day prompt listing
+ * the bank exercises relevant to this session.
+ */
+export function formatBankForPrompt(dayName: string): string {
+  const bank = getBankForDay(dayName);
+  if (!bank.length) return "";
+
+  return `EXERCISE REFERENCE LIBRARY — drawn from curated workout programs:
+The following exercises are preferred movements for this day type. Prioritize these when building the session — use the sets and rep ranges listed. You may also add exercises not in this list if they complement the session, but always prefer library exercises first.
+
+${bank.map((ex, i) =>
+  `  ${i + 1}. ${ex.name} — ${ex.sets} sets × ${ex.rep_range} (${ex.rest_seconds}s rest)\n     Cue: ${ex.coaching_note}`
+).join("\n")}`;
+}
