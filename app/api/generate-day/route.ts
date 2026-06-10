@@ -10,7 +10,7 @@ export const maxDuration = 60; // seconds — overrides Vercel's default 10s lim
 import { NextRequest, NextResponse } from "next/server";
 import { askClaude, extractJSON } from "@/lib/claude";
 import type { PlanDay } from "@/types";
-import { inferExerciseMuscle, allowedMusclesForDay } from "@/lib/exercise-classifier";
+import { inferExerciseMuscle, allowedMusclesForDay, isBodyweightExercise } from "@/lib/exercise-classifier";
 import { formatBankForPrompt } from "@/lib/program-bank";
 
 export interface PoolExercise {
@@ -130,10 +130,12 @@ Core rules: ${coreSection}
 
 ${bankSection ? bankSection + "\n\n" : ""}${poolSection ? poolSection + "\n\n" : ""}EQUIPMENT VARIETY — read this first, it overrides everything else:
 - MAXIMUM 2 barbell exercises per session. Never more. This is a hard limit.
+- MAXIMUM 1 bodyweight exercise per session (e.g. pull-ups, push-ups, dips, chin-ups, pistol squats, inverted rows). Never more than 1, and zero is fine. This is a hard limit — the rest of the session must use loaded equipment (barbell, dumbbells, cables, or machines).
 - Every other exercise MUST use different equipment: dumbbells, cables, machines, or bodyweight.
 - Good Push Day: Barbell Bench Press → Dumbbell Shoulder Press → Cable Lateral Raise → Machine Chest Fly → Dumbbell Tricep Overhead Extension.
 - BAD Push Day (never do this): Barbell Bench → Barbell Incline → Barbell OHP → Barbell Skull Crusher → Barbell Upright Row.
-- If the user has dumbbells, cables, or machines available — USE THEM. Do not default to barbell for every exercise.
+- BAD Pull Day (never do this): Pull-Ups → Chin-Ups → Inverted Rows → Dips → Hanging Leg Raise (4 bodyweight movements — way too many).
+- If the user has dumbbells, cables, or machines available — USE THEM. Do not default to barbell or bodyweight for every exercise.
 
 General rules:
 1. Only use exercises possible with the listed equipment.
@@ -305,6 +307,66 @@ Rules:
         }
       } else {
         console.log(`[generate-day] ✓ DEDUP — no duplicate exercises found.`);
+      }
+    }
+
+    // ── FIX 3: Cap bodyweight exercises at 1 per session ──────────────────────
+    // Claude sometimes leans heavily on pull-ups/push-ups/dips/etc. Keep at most
+    // one bodyweight movement (excluding core/abs work, which is handled separately)
+    // and replace any extras with an equipment-based exercise targeting the same muscle.
+    if (dayData.exercises?.length) {
+      const bwIndices = dayData.exercises
+        .map((ex, i) => ({ ex, i }))
+        .filter(({ ex }) => isBodyweightExercise(ex.name) && inferExerciseMuscle(ex.name) !== "abs and core")
+        .map(({ i }) => i);
+
+      if (bwIndices.length > 1) {
+        const extraIndices = bwIndices.slice(1); // keep the first bodyweight exercise
+        console.warn(`[generate-day] BWFIX — found ${bwIndices.length} bodyweight exercises, replacing ${extraIndices.length} extra(s):`, extraIndices.map((i) => dayData.exercises[i].name));
+
+        const otherNames = dayData.exercises.map((ex) => ex.name);
+        const toReplace = extraIndices.map((i) => dayData.exercises[i]);
+
+        const bwFixPrompt = `You are an expert coach fixing a workout that has too many bodyweight exercises.
+
+The workout targets: ${muscle_focus}
+Available equipment: ${equipmentList}
+
+These exercises must each be replaced with an EQUIPMENT-BASED exercise (barbell, dumbbell, cable, or machine — NOT bodyweight):
+${toReplace.map((ex) => `  - "${ex.name}" (targets ${inferExerciseMuscle(ex.name)} — replacement MUST target same muscle)`).join("\n")}
+
+Do NOT suggest any of these (already in the workout):
+${otherNames.map((n) => `  - ${n}`).join("\n")}
+
+Rules:
+1. Each replacement must target the SAME primary muscle group as the exercise it replaces.
+2. Each replacement must use equipment from: ${equipmentList} (no bodyweight-only movements).
+3. Each replacement must be a genuinely different exercise from everything else in the workout.
+4. Return ONLY a JSON array with exactly ${toReplace.length} replacement(s):
+[{ "name": "...", "sets": 3, "rep_range": "8-12", "rest_seconds": 60, "coaching_note": "..." }]`;
+
+        try {
+          const rawBwFix = await askClaude(bwFixPrompt);
+          const replacements = JSON.parse(extractJSON(rawBwFix)) as PlanDay["exercises"];
+          let ri = 0;
+          dayData.exercises = dayData.exercises.map((ex, i) => {
+            if (extraIndices.includes(i) && replacements[ri]) {
+              const repl = replacements[ri++];
+              if (!isBodyweightExercise(repl.name)) {
+                console.log(`[generate-day] BWFIX — replaced "${ex.name}" → "${repl.name}"`);
+                return repl;
+              }
+              console.warn(`[generate-day] BWFIX — replacement "${repl.name}" is still bodyweight, dropping "${ex.name}" instead`);
+              return null;
+            }
+            return ex;
+          }).filter((ex): ex is PlanDay["exercises"][number] => ex !== null);
+        } catch (e) {
+          console.error("[generate-day] BWFIX replacement failed, removing extra bodyweight exercises:", e);
+          dayData.exercises = dayData.exercises.filter((_, i) => !extraIndices.includes(i));
+        }
+      } else {
+        console.log(`[generate-day] ✓ BWFIX — ${bwIndices.length} bodyweight exercise(s), within limit.`);
       }
     }
 
