@@ -62,6 +62,18 @@ export const PUSH_BANK: BankExercise[] = [
   { name: "Dumbbell Tate Press",                  sets: 4, rep_range: "10-12", rest_seconds: 60, coaching_note: "Start like a skull crusher; flare elbows out toward chest — hits medial and lateral heads." },
   { name: "V-Bar Pressdown Mechanical Drop Set",  sets: 3, rep_range: "8-8-8", rest_seconds: 60, coaching_note: "Wide grip ×8 → immediately close-grip ×8 → drop weight ×8. No rest between grips." },
   { name: "Weighted Bench Dip",                   sets: 4, rep_range: "10-12", rest_seconds: 75, coaching_note: "Keep chest upright and elbows tucked; lower until elbows hit 90° for tricep emphasis." },
+
+  // Additional variations (Month 1/2 weekly split)
+  { name: "Decline Cable Fly (Pinky to Pinky)",   sets: 4, rep_range: "8-10",  rest_seconds: 60, coaching_note: "Set cables high, sweep down and across with pinkies leading to finish — targets lower chest." },
+  { name: "Single Arm Skull Crusher to Pullover Combo", sets: 3, rep_range: "8",  rest_seconds: 75, coaching_note: "Perform a skull crusher, then extend the straight arm behind the head into a pullover — compound triceps and lat stretch." },
+  { name: "Cable Kickback",                       sets: 4, rep_range: "8-12",  rest_seconds: 45, coaching_note: "Hinge forward, keep upper arm pinned to your side, extend straight back and squeeze." },
+  { name: "Incline Cable Overhead Tricep Extension", sets: 4, rep_range: "8-10", rest_seconds: 60, coaching_note: "Lie on an incline bench facing away from the cable; extend arms overhead for a deep long-head stretch." },
+  { name: "Single Arm Behind-Neck Tricep Extension", sets: 4, rep_range: "8-10", rest_seconds: 60, coaching_note: "Isolate one arm at a time; keep the elbow high and close to the head throughout." },
+  { name: "Single Arm Upright Row with Plate",    sets: 4, rep_range: "8",     rest_seconds: 60, coaching_note: "Drive the elbow up and keep the plate close to the body for trap and lateral delt emphasis." },
+  { name: "Neutral Grip Front Raise (Soda Can Raise)", sets: 4, rep_range: "8", rest_seconds: 60, coaching_note: "Hold dumbbells with thumbs up like soda cans; raise straight in front with control — easy on the shoulder joint." },
+  { name: "Pyramid Lateral Raise Drop Set",       sets: 1, rep_range: "6 per drop", rest_seconds: 60, coaching_note: "Start heaviest, drop weight every 6 reps with no rest until you reach the lightest dumbbells." },
+  { name: "High Rope Trap Pull",                  sets: 4, rep_range: "8",     rest_seconds: 60, coaching_note: "Pull the rope toward your forehead/crown, driving elbows high to hammer the upper traps." },
+  { name: "Resistance Band Tricep 21s",           sets: 3, rep_range: "21",    rest_seconds: 60, coaching_note: "Anchor a band overhead: 7 bottom-half reps, 7 top-half reps, 7 full reps with no rest between." },
 ];
 
 // ── PULL (Back, Biceps) ───────────────────────────────────────────────────────
@@ -99,6 +111,12 @@ export const PULL_BANK: BankExercise[] = [
   { name: "Zottman Curl",                         sets: 4, rep_range: "8-10",  rest_seconds: 60, coaching_note: "Curl up supinated, rotate to pronated at the top, lower overhand — hits both heads and forearms." },
   { name: "Chin-Up to Failure",                   sets: 1, rep_range: "max",   rest_seconds: 60, coaching_note: "Underhand palms-facing-you grip; use as a burnout finisher." },
   { name: "Preacher Curl Machine 21s",            sets: 3, rep_range: "21",    rest_seconds: 75, coaching_note: "7 bottom-range → 7 top-range → 7 full reps with no rest between — brutal pump set." },
+
+  // Additional variations (Month 1/2 weekly split)
+  { name: "Incline Bench Row (Heavy)",            sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "Chest braced on an incline bench, row heavy with strict form — minimal momentum." },
+  { name: "Back Extension Deadlift",              sets: 4, rep_range: "8",     rest_seconds: 75, coaching_note: "Hold a barbell or dumbbell against your chest on the back extension bench; full hip hinge each rep." },
+  { name: "Negative Incline Dumbbell Curl",       sets: 4, rep_range: "8",     rest_seconds: 60, coaching_note: "Curl up with both arms, then lower one arm for a slow 3-second eccentric on an incline bench." },
+  { name: "Single Arm Row (No Attachment)",       sets: 4, rep_range: "8",     rest_seconds: 75, coaching_note: "Grip the cable bar/handle directly with one hand; row to the hip and squeeze the lat hard." },
 ];
 
 // ── LEGS (Quads, Hamstrings, Glutes, Calves) ──────────────────────────────────
@@ -127,6 +145,47 @@ export const LEGS_BANK: BankExercise[] = [
   // Calves
   { name: "Standing Calf Raise",                  sets: 4, rep_range: "12-15", rest_seconds: 60, coaching_note: "Full stretch at the bottom; 1-second pause at the top on every rep." },
   { name: "Seated Calf Raise",                    sets: 4, rep_range: "15-20", rest_seconds: 45, coaching_note: "Slow eccentric; calves grow with high volume and full ROM." },
+
+  // Additional variations (Month 1/2 weekly split)
+  { name: "Back Squat with Pause",                sets: 4, rep_range: "6-8",   rest_seconds: 90, coaching_note: "3-second pause at the bottom of every rep to kill momentum and build raw strength." },
+  { name: "Front Squat (Heavy)",                  sets: 5, rep_range: "4",     rest_seconds: 120, coaching_note: "Elbows high, bar resting on front delts; brace hard and stay upright through a heavy set of low reps." },
+];
+
+// ── CORE — finishers organized by day type ───────────────────────────────────
+export const PUSH_CORE: BankExercise[] = [
+  { name: "Ab Wheel Rollout",                     sets: 3, rep_range: "8-12",  rest_seconds: 60, coaching_note: "Brace hard, roll out as far as you can without arching the lower back, then pull back in." },
+  { name: "Decline Bench Leg Raise",              sets: 3, rep_range: "12-15", rest_seconds: 45, coaching_note: "Keep legs straight and lower under control; don't let momentum take over." },
+  { name: "RKC Plank",                            sets: 3, rep_range: "20-30 sec", rest_seconds: 45, coaching_note: "Maximal full-body tension — glutes, abs, and lats squeezed as hard as possible." },
+];
+
+export const PULL_CORE: BankExercise[] = [
+  { name: "Hanging Knee Raise",                   sets: 3, rep_range: "10-15", rest_seconds: 45, coaching_note: "Avoid swinging; curl the pelvis up at the top for full lower-ab engagement." },
+  { name: "Single Arm Cable Row Hold",            sets: 3, rep_range: "20 sec each side", rest_seconds: 45, coaching_note: "Hold the row position at peak contraction — anti-rotation core and lat isometric." },
+  { name: "Bird Dog",                             sets: 2, rep_range: "10 each side", rest_seconds: 30, coaching_note: "Extend opposite arm and leg slowly while keeping the spine completely still." },
+];
+
+export const LEGS_CORE: BankExercise[] = [
+  { name: "Heavy Farmer Carry",                   sets: 4, rep_range: "40-60 ft", rest_seconds: 60, coaching_note: "Brace your core like a plank while walking; don't let the weights swing." },
+  { name: "Front Rack or Goblet Carry Hold",      sets: 3, rep_range: "30-45 sec", rest_seconds: 45, coaching_note: "Hold the weight at chest height with elbows up — demands serious anti-extension core strength." },
+  { name: "Weighted Plank",                       sets: 3, rep_range: "30 sec",  rest_seconds: 45, coaching_note: "Add a plate to your back; keep hips level and glutes squeezed throughout." },
+];
+
+export const UPPER_CORE: BankExercise[] = [
+  { name: "Cable Crunch",                         sets: 4, rep_range: "12-15", rest_seconds: 45, coaching_note: "Crunch from the spine, not the hips — keep hips stationary and curl the ribcage down." },
+  { name: "Hanging Leg Raise",                    sets: 3, rep_range: "12",    rest_seconds: 45, coaching_note: "Raise legs to at least parallel with control; avoid swinging on the bar." },
+  { name: "Pallof Press",                         sets: 3, rep_range: "12 each side", rest_seconds: 45, coaching_note: "Resist the cable's pull to rotate your torso — press straight out and hold." },
+];
+
+export const ACTIVE_CORE: BankExercise[] = [
+  { name: "Dead Bug",                             sets: 2, rep_range: "10 each side", rest_seconds: 30, coaching_note: "Press the lower back into the floor throughout; move opposite arm/leg slowly." },
+  { name: "Side Plank",                           sets: 2, rep_range: "30 sec each side", rest_seconds: 30, coaching_note: "Stack hips and shoulders in a straight line; don't let the hips sag." },
+  { name: "Light Cable Woodchopper",              sets: 2, rep_range: "12 each side", rest_seconds: 30, coaching_note: "Rotate from the core, not the arms — controlled tempo through the full diagonal." },
+];
+
+export const ATHLETIC_CORE: BankExercise[] = [
+  { name: "Med Ball Slam",                        sets: 4, rep_range: "10",    rest_seconds: 45, coaching_note: "Use the whole body — reach high, then slam explosively through the hips and core." },
+  { name: "Rotational Throw",                     sets: 3, rep_range: "8 each side", rest_seconds: 45, coaching_note: "Generate power from the hips and torso, not just the arms — explosive release." },
+  { name: "Offset Farmer Carry",                  sets: 3, rep_range: "40 ft each side", rest_seconds: 45, coaching_note: "Carry a single heavy weight on one side; resist leaning — pure anti-lateral-flexion core work." },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -140,18 +199,44 @@ export function getBankForDay(dayName: string): BankExercise[] {
   return [];
 }
 
+/** Map a day name to a core finisher set */
+export function getCoreForDay(dayName: string): BankExercise[] {
+  const n = dayName.toLowerCase();
+  if (n.includes("push") || n.includes("chest") || n.includes("shoulder") || n.includes("tricep")) return PUSH_CORE;
+  if (n.includes("pull") || n.includes("back") || n.includes("bicep")) return PULL_CORE;
+  if (n.includes("leg") || n.includes("lower") || n.includes("squat")) return LEGS_CORE;
+  if (n.includes("upper") || n.includes("full body") || n.includes("full-body")) return UPPER_CORE;
+  if (n.includes("active") || n.includes("recovery") || n.includes("off")) return ACTIVE_CORE;
+  if (n.includes("athletic") || n.includes("conditioning")) return ATHLETIC_CORE;
+  return [];
+}
+
 /**
  * Return a formatted string for the generate-day prompt listing
  * the bank exercises relevant to this session.
+ *
+ * IMPORTANT: this is a source of INSPIRATION, not a strict pull-from list.
+ * Claude should blend these proven movements with its own generated exercises
+ * to keep sessions varied and fresh — never just copy the list verbatim.
  */
 export function formatBankForPrompt(dayName: string): string {
   const bank = getBankForDay(dayName);
-  if (!bank.length) return "";
+  const core = getCoreForDay(dayName);
+  if (!bank.length && !core.length) return "";
 
-  return `EXERCISE REFERENCE LIBRARY — drawn from curated workout programs:
-The following exercises are preferred movements for this day type. Prioritize these when building the session — use the sets and rep ranges listed. You may also add exercises not in this list if they complement the session, but always prefer library exercises first.
+  let section = `EXERCISE REFERENCE LIBRARY — inspiration drawn from real, proven workout programs:
+Use this library as a creative reference, NOT a script to copy. Treat these as a pool of high-quality, proven movements (with sets/rep ranges/rest that have worked well in practice). Blend a mix of these library exercises with your own generated exercise choices so each session feels fresh and varied — do NOT build the session entirely from this list, and do NOT use the same subset every time. Vary which library exercises you draw from across sessions, and feel free to substitute your own ideas for any movement, especially if it improves variety, equipment fit, or matches the user's history.
 
 ${bank.map((ex, i) =>
   `  ${i + 1}. ${ex.name} — ${ex.sets} sets × ${ex.rep_range} (${ex.rest_seconds}s rest)\n     Cue: ${ex.coaching_note}`
 ).join("\n")}`;
+
+  if (core.length) {
+    section += `\n\nOPTIONAL CORE FINISHER — if the session has time/space for a short core finisher, draw inspiration from (not limited to):
+${core.map((ex, i) =>
+  `  ${i + 1}. ${ex.name} — ${ex.sets} sets × ${ex.rep_range} (${ex.rest_seconds}s rest)\n     Cue: ${ex.coaching_note}`
+).join("\n")}`;
+  }
+
+  return section;
 }
