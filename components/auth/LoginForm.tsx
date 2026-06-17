@@ -26,13 +26,21 @@ export default function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError(error.message);
+      // Supabase returns generic messages — make common ones user-friendly
+      const msg = error.message.toLowerCase();
+      if (msg.includes("invalid login") || msg.includes("invalid credentials") || msg.includes("email not confirmed")) {
+        setError("Incorrect email or password. Please try again.");
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
       return;
     }
 
-    router.push("/dashboard");
+    // refresh() first so the middleware picks up the new session cookie before
+    // the navigation request is made — prevents a spurious redirect back to /login
     router.refresh();
+    router.push("/dashboard");
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
