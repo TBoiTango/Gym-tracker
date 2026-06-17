@@ -34,7 +34,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
   const router = useRouter();
   const supabase = createClient();
 
-  const [exercises, setExercises] = useState<Exercise[]>(planDay.exercises);
+  // Each exercise slot gets a stable UUID at mount/creation time so React
+  // never confuses two cards just because one was renamed via a swap.
+  // (Using exercise.name as the key breaks when a swap returns a name that
+  //  collides with an existing card, causing React to wipe the wrong card.)
+  const [exercises, setExercises] = useState<(Exercise & { _key: string })[]>(
+    () => planDay.exercises.map((ex) => ({ ...ex, _key: crypto.randomUUID() }))
+  );
   const [logs, setLogs] = useState<ExerciseLog[]>(existingLogs);
   const [finishing, setFinishing] = useState(false);
 
@@ -142,6 +148,29 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       });
       if (!res.ok) return;
       const newExercise = await res.json();
+
+      // Safety check: if the API returned an exercise already in another slot,
+      // the swap is invalid — log and bail rather than creating a duplicate name
+      // (duplicate names with key={exercise.name} used to corrupt card state).
+      setExercises((prev) => {
+        const nameConflict = prev.some((ex, i) => i !== index && ex.name === newExercise.name);
+        if (nameConflict) {
+          console.error(`[swapExercise] ABORT — API returned "${newExercise.name}" which already exists in another slot. Ignoring swap.`);
+          return prev;
+        }
+
+        console.log(`[swapExercise] BEFORE swap: exercises=[${prev.map((e) => e.name).join(", ")}], logs=[${logs.map((l) => `${l.exercise_name}(${l.sets_completed}sets)`).join(", ")}]`);
+
+        const next = prev.map((ex, i) =>
+          i === index
+            ? { ...newExercise, _key: crypto.randomUUID() } // fresh stable key for the new card
+            : ex                                             // all other slots untouched
+        );
+
+        console.log(`[swapExercise] AFTER  swap: exercises=[${next.map((e) => e.name).join(", ")}], swapped index=${index} ("${prev[index].name}" → "${newExercise.name}")`);
+        return next;
+      });
+
       // Record this new exercise name so it can't be suggested again for this slot
       setSeenExercises((prev) => {
         const next = new Map(prev);
@@ -149,7 +178,6 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         next.set(index, [...existing, newExercise.name]);
         return next;
       });
-      setExercises((prev) => prev.map((ex, i) => i === index ? newExercise : ex));
     } finally {
       setSwappingIndex(null);
     }
@@ -242,7 +270,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
       // Track this name so the log entry gets marked user_added: true
       setQuickAddedNames((prev) => new Set(prev).add(newExercise.name));
-      insertExercise(newExercise);
+      insertExercise({ ...newExercise, _key: crypto.randomUUID() });
     } finally {
       setQuickAddLoading(null);
     }
@@ -250,7 +278,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   // Insert a new exercise directly AFTER the last completed exercise (FIX 5.1),
   // so added work appears "up next" rather than buried at the bottom.
-  const insertExercise = (ex: Exercise) => {
+  const insertExercise = (ex: Exercise & { _key: string }) => {
     setExercises((prev) => {
       // Find index of the last exercise that has all its sets logged
       let lastCompleted = -1;
@@ -267,12 +295,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   // Add an exercise chosen from the static library (Quick Add → Other modal)
   const addLibraryExercise = async (libEx: LibraryExercise) => {
-    const ex: Exercise = {
+    const ex = {
       name: libEx.name,
       sets: libEx.defaultSets,
       rep_range: libEx.defaultReps,
       rest_seconds: 60,
       coaching_note: "",
+      _key: crypto.randomUUID(),
     };
     // Persist to the per-day pool so it can rotate into future sessions
     const { data: { user } } = await supabase.auth.getUser();
@@ -325,8 +354,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setExercises((prev) => {
-      const oldIndex = prev.findIndex((e) => e.name === active.id);
-      const newIndex = prev.findIndex((e) => e.name === over.id);
+      const oldIndex = prev.findIndex((e) => e._key === active.id);
+      const newIndex = prev.findIndex((e) => e._key === over.id);
       if (oldIndex === -1 || newIndex === -1) return prev;
       return arrayMove(prev, oldIndex, newIndex);
     });
@@ -398,12 +427,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   const confirmAddExercise = () => {
     if (!newName.trim()) return;
-    const ex: Exercise = {
+    const ex = {
       name: newName.trim(),
       sets: newSets,
       rep_range: newRepRange,
       rest_seconds: newRest,
       coaching_note: "",
+      _key: crypto.randomUUID(),
     };
     setExercises((prev) => {
       const next = [...prev];
@@ -502,11 +532,11 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={exercises.map((e) => e.name)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={exercises.map((e) => e._key)} strategy={verticalListSortingStrategy}>
           <div className="space-y-4 mb-6">
             {exercises.map((exercise, i) => (
               <SortableExerciseItem
-                key={exercise.name}
+                key={exercise._key}
                 exercise={exercise}
                 log={logs.find((l) => l.exercise_name === exercise.name)}
                 sessionId={sessionId}
@@ -754,7 +784,7 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 function SortableExerciseItem({
   exercise, log, sessionId, swapping, onLogUpdated, onAddSet, onSwap, onSkip,
 }: {
-  exercise: Exercise;
+  exercise: Exercise & { _key: string };
   log?: ExerciseLog;
   sessionId: string;
   swapping: boolean;
@@ -763,7 +793,7 @@ function SortableExerciseItem({
   onSwap: () => void;
   onSkip: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exercise.name });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: exercise._key });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
