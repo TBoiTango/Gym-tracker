@@ -211,30 +211,46 @@ export function getCoreForDay(dayName: string): BankExercise[] {
   return [];
 }
 
+/** Fisher-Yates shuffle — returns a new shuffled array without mutating the original. */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /**
  * Return a formatted string for the generate-day prompt listing
- * the bank exercises relevant to this session.
+ * a random sample of bank exercises relevant to this session.
+ *
+ * Sampling (default 14 from the main bank) keeps the prompt lean so the
+ * route stays within Vercel's function timeout while still giving Claude
+ * a varied pool of reference exercises. A different subset is chosen each
+ * call, which naturally diversifies sessions over time.
  *
  * IMPORTANT: this is a source of INSPIRATION, not a strict pull-from list.
- * Claude should blend these proven movements with its own generated exercises
- * to keep sessions varied and fresh — never just copy the list verbatim.
  */
-export function formatBankForPrompt(dayName: string): string {
+export function formatBankForPrompt(dayName: string, sampleSize = 14): string {
   const bank = getBankForDay(dayName);
   const core = getCoreForDay(dayName);
   if (!bank.length && !core.length) return "";
 
-  let section = `EXERCISE REFERENCE LIBRARY — inspiration drawn from real, proven workout programs:
-Use this library as a creative reference, NOT a script to copy. Treat these as a pool of high-quality, proven movements (with sets/rep ranges/rest that have worked well in practice). Blend a mix of these library exercises with your own generated exercise choices so each session feels fresh and varied — do NOT build the session entirely from this list, and do NOT use the same subset every time. Vary which library exercises you draw from across sessions, and feel free to substitute your own ideas for any movement, especially if it improves variety, equipment fit, or matches the user's history.
+  // Sample a random subset of the main bank so the prompt stays manageable
+  const sample = bank.length <= sampleSize ? bank : shuffle(bank).slice(0, sampleSize);
 
-${bank.map((ex, i) =>
-  `  ${i + 1}. ${ex.name} — ${ex.sets} sets × ${ex.rep_range} (${ex.rest_seconds}s rest)\n     Cue: ${ex.coaching_note}`
+  let section = `EXERCISE REFERENCE LIBRARY — inspiration drawn from real, proven workout programs:
+Use this library as a creative reference, NOT a script to copy. Blend a mix of these exercises with your own ideas — vary which ones you pick each session. Do NOT build the session entirely from this list.
+
+${sample.map((ex, i) =>
+  `  ${i + 1}. ${ex.name} — ${ex.sets}×${ex.rep_range} (${ex.rest_seconds}s rest) | ${ex.coaching_note}`
 ).join("\n")}`;
 
   if (core.length) {
-    section += `\n\nOPTIONAL CORE FINISHER — if the session has time/space for a short core finisher, draw inspiration from (not limited to):
+    section += `\n\nOPTIONAL CORE REFERENCE (pick 1-2 if core is included):
 ${core.map((ex, i) =>
-  `  ${i + 1}. ${ex.name} — ${ex.sets} sets × ${ex.rep_range} (${ex.rest_seconds}s rest)\n     Cue: ${ex.coaching_note}`
+  `  ${i + 1}. ${ex.name} — ${ex.sets}×${ex.rep_range} | ${ex.coaching_note}`
 ).join("\n")}`;
   }
 

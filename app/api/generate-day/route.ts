@@ -1,4 +1,4 @@
-export const maxDuration = 60; // seconds — overrides Vercel's default 10s limit
+export const maxDuration = 120; // seconds — needs headroom for up to 4 sequential Claude calls
 
 // POST /api/generate-day
 // Generates a single day's workout on the fly based on:
@@ -160,6 +160,7 @@ Return exactly this JSON shape (a single day object):
   ]
 }`;
 
+    console.log(`[generate-day] Prompt length: ${prompt.length} chars. Calling Claude…`);
     const raw = await askClaude(prompt);
     const cleaned = extractJSON(raw);
 
@@ -167,12 +168,13 @@ Return exactly this JSON shape (a single day object):
     try {
       dayData = JSON.parse(cleaned);
     } catch {
-      console.error("Claude returned non-JSON:", raw);
+      console.error("[generate-day] Claude returned non-JSON. Raw response:", raw.slice(0, 500));
       return NextResponse.json(
         { error: "Claude returned an unexpected response. Please try again." },
         { status: 500 }
       );
     }
+    console.log(`[generate-day] Initial generation: ${dayData.exercises?.length ?? 0} exercises`);
 
     // Server-side safety net: verify no excluded exercise slipped through.
     if (recently_used_exercises.length > 0 && dayData.exercises) {
@@ -372,7 +374,12 @@ Rules:
 
     return NextResponse.json(dayData);
   } catch (err) {
-    console.error("generate-day error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[generate-day] FATAL error:", message);
+    // Surface timeout errors clearly so they're easy to spot in Vercel logs
+    if (message.includes("timeout") || message.includes("timed out")) {
+      console.error("[generate-day] This looks like a function timeout. Consider raising maxDuration or reducing prompt size.");
+    }
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
