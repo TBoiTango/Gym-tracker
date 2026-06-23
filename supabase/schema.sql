@@ -163,6 +163,27 @@ create policy "Users manage their own suggestions"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- ── 8. user_exercise_preferences ────────────────────────────────────────────
+-- Tracks exercises the user repeatedly skips so the generator stops suggesting them.
+-- skip_count increments each time the user X's the exercise out of a session.
+-- do_not_suggest is set to true once skip_count reaches 3.
+create table if not exists user_exercise_preferences (
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  exercise_name   text not null,
+  skip_count      int not null default 1,
+  do_not_suggest  boolean not null default false,
+  last_skipped_at timestamptz not null default now(),
+  primary key (user_id, exercise_name)
+);
+
+alter table user_exercise_preferences enable row level security;
+
+drop policy if exists "Users manage their own exercise preferences" on user_exercise_preferences;
+create policy "Users manage their own exercise preferences"
+  on user_exercise_preferences for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 -- ── Auto-create profile on signup ─────────────────────────────────────────────
 drop trigger if exists on_auth_user_created on auth.users;
 

@@ -69,6 +69,8 @@ export default function WorkoutPage() {
     sessionCount: number;
     avgExercises: number;
     poolExercises: { exercise_name: string; sets: number; rep_range: string; rest_seconds: number; coaching_note: string }[];
+    dislikedExercises: string[];
+    staleExercises: string[];
   } | null>(null);
   const [adaptiveLoading, setAdaptiveLoading] = useState(false);
 
@@ -197,10 +199,72 @@ export default function WorkoutPage() {
           .order("last_included_at", { ascending: true, nullsFirst: true })
           .limit(6);
 
+        // Exercises the user has permanently blocked (skipped 3+ times)
+        const { data: disliked } = await supabase
+          .from("user_exercise_preferences")
+          .select("exercise_name")
+          .eq("user_id", userId)
+          .eq("do_not_suggest", true);
+
+        // Stale exercise detection: look at last 8 sessions of the same muscle
+        // category and flag any exercise that appeared in 5+ of them — those
+        // get a "please use a variation" nudge rather than a hard exclusion.
+        const myCategory = muscleCategory(selectedDay.day_name);
+        const { data: catSessions } = await supabase
+          .from("workout_sessions")
+          .select("id")
+          .eq("user_id", userId)
+          .not("completed_at", "is", null)
+          .or("session_type.is.null,session_type.eq.workout")
+          .order("started_at", { ascending: false })
+          .limit(24); // fetch enough to filter by category
+
+        let staleExercises: string[] = [];
+        if (catSessions && catSessions.length > 0) {
+          // Filter to same muscle category sessions (client-side, since plan_day is text)
+          const { data: catSessionsFull } = await supabase
+            .from("workout_sessions")
+            .select("id, plan_day")
+            .eq("user_id", userId)
+            .not("completed_at", "is", null)
+            .or("session_type.is.null,session_type.eq.workout")
+            .order("started_at", { ascending: false })
+            .limit(24);
+
+          const sameCatIds = (catSessionsFull ?? [])
+            .filter((s) => muscleCategory(s.plan_day) === myCategory)
+            .slice(0, 8)
+            .map((s) => s.id);
+
+          if (sameCatIds.length >= 5) {
+            const { data: catLogs } = await supabase
+              .from("exercise_logs")
+              .select("exercise_name, session_id")
+              .in("session_id", sameCatIds);
+
+            if (catLogs && catLogs.length > 0) {
+              // Count how many sessions each exercise appeared in
+              const sessionSets: Record<string, Set<string>> = {};
+              for (const log of catLogs) {
+                if (!sessionSets[log.exercise_name]) sessionSets[log.exercise_name] = new Set();
+                sessionSets[log.exercise_name].add(log.session_id);
+              }
+              staleExercises = Object.entries(sessionSets)
+                .filter(([, sessions]) => sessions.size >= 5)
+                .map(([name]) => name);
+              if (staleExercises.length > 0) {
+                console.log(`[stale] exercises used in 5+ of last 8 ${myCategory} sessions:`, staleExercises);
+              }
+            }
+          }
+        }
+
         setAdaptiveInfo({
           sessionCount,
           avgExercises,
           poolExercises: pool ?? [],
+          dislikedExercises: (disliked ?? []).map((d) => d.exercise_name),
+          staleExercises,
         });
       } finally {
         setAdaptiveLoading(false);
@@ -278,7 +342,15 @@ export default function WorkoutPage() {
     setError("");
 
     const recentlyUsedExercises = await computeExcludedExercises(selectedDay.day_name);
-    console.log(`[generate] recently_used_exercises being sent to Claude (${recentlyUsedExercises.length}):`, recentlyUsedExercises);
+    // Merge in permanently-blocked exercises so they're also hard-excluded
+    const disliked = adaptiveInfo?.dislikedExercises ?? [];
+    const allExcluded = Array.from(new Set([...recentlyUsedExercises, ...disliked]));
+    console.log(`[generate] excluded (${allExcluded.length}): recently_used=${recentlyUsedExercises.length}, disliked=${disliked.length}`, allExcluded);
+
+    const staleExercises = adaptiveInfo?.staleExercises ?? [];
+    if (staleExercises.length > 0) {
+      console.log(`[generate] stale exercises (will prompt for variation):`, staleExercises);
+    }
 
     const res = await fetch("/api/generate-day", {
       method: "POST",
@@ -297,7 +369,8 @@ export default function WorkoutPage() {
         // Adaptive volume params — only send if we have meaningful data
         target_exercise_count: adaptiveInfo && adaptiveInfo.avgExercises > 0 ? adaptiveInfo.avgExercises : undefined,
         pool_exercises: adaptiveInfo?.poolExercises ?? [],
-        recently_used_exercises: recentlyUsedExercises,
+        recently_used_exercises: allExcluded,
+        stale_exercises: staleExercises,
       }),
     });
 

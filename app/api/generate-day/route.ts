@@ -37,6 +37,8 @@ export interface GenerateDayRequest {
   pool_exercises?: PoolExercise[];  // user-added exercises to rotate in
   // Exercise history — prevent repeats across sessions of the same day type
   recently_used_exercises?: string[];
+  // Exercises used 5+ times in the last 8 same-day sessions — prompt for variations
+  stale_exercises?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
       target_exercise_count,
       pool_exercises = [],
       recently_used_exercises = [],
+      stale_exercises = [],
     } = body;
 
     const equipmentList = equipment.join(", ");
@@ -143,7 +146,7 @@ General rules:
 3. Scale intensity to experience level.
 4. Coaching notes: practical, one sentence each.
 5. Return ONLY valid JSON — no markdown, no explanation, no code fences.
-6. UNIQUENESS — this is a hard rule: each exercise must appear ONLY ONCE in the workout. Do not repeat any exercise name, even with different rep ranges or sets. Every entry in the exercises array must be a completely different exercise.${recentExclusionSection}
+6. UNIQUENESS — this is a hard rule: each exercise must appear ONLY ONCE in the workout. Do not repeat any exercise name, even with different rep ranges or sets. Every entry in the exercises array must be a completely different exercise.${recentExclusionSection}${stale_exercises.length > 0 ? `\n\nFRESHNESS — 4-WEEK VARIATION RULE:\nThe following exercises have appeared in 5 or more of the user's recent ${day_name} sessions. To keep training fresh and prevent adaptation, use a variation or alternative for at least half of them — don't just swap the name, genuinely change the movement pattern, equipment, or angle:\n${stale_exercises.map((e) => `  - ${e}`).join("\n")}\nExamples of acceptable variations: Barbell Bench → Hex Press or Incline DB Press; Cable Row → Chest-Supported DB Row; Overhead Extension → Cable Skull Crusher. You may still include one or two of these if they're essential anchors (e.g. a main compound), but bring in fresh alternatives for the rest.` : ""}
 
 Return exactly this JSON shape (a single day object):
 {

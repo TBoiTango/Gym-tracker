@@ -324,11 +324,14 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
 
   // Skip exercise state
   const [skipIndex, setSkipIndex] = useState<number | null>(null);
-  const SKIP_REASONS = ["Feeling sore", "No equipment", "Short on time", "Other"];
+  const [blockedToast, setBlockedToast] = useState<string | null>(null);
+  const SKIP_REASONS = ["Feeling sore", "No equipment", "Short on time", "Don't like it"];
 
   const confirmSkip = (reason: string) => {
     if (skipIndex === null) return;
     const removedAt = skipIndex;
+    const skippedName = exercises[removedAt].name;
+
     setExercises((prev) => prev.filter((_, i) => i !== removedAt));
     // Shift seenExercises indices down to match the new exercise array positions
     setSeenExercises((prev) => {
@@ -341,6 +344,39 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       return next;
     });
     setSkipIndex(null);
+
+    // Record this skip so the generator learns to avoid exercises the user
+    // consistently removes. Fire-and-forget — doesn't block the UI.
+    recordSkipPreference(skippedName);
+  };
+
+  const recordSkipPreference = async (exerciseName: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Read current count, then increment
+    const { data: existing } = await supabase
+      .from("user_exercise_preferences")
+      .select("skip_count")
+      .eq("user_id", user.id)
+      .eq("exercise_name", exerciseName)
+      .maybeSingle();
+
+    const newCount = (existing?.skip_count ?? 0) + 1;
+    const nowBlocked = newCount >= 3;
+
+    await supabase.from("user_exercise_preferences").upsert({
+      user_id: user.id,
+      exercise_name: exerciseName,
+      skip_count: newCount,
+      last_skipped_at: new Date().toISOString(),
+      do_not_suggest: nowBlocked,
+    }, { onConflict: "user_id,exercise_name" });
+
+    if (nowBlocked) {
+      setBlockedToast(`"${exerciseName}" won't be suggested again.`);
+      setTimeout(() => setBlockedToast(null), 4000);
+    }
   };
 
   // Drag-to-reorder sensors. TouchSensor with a 200ms hold so a tap on the
@@ -525,6 +561,13 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         <Link href="/workout/history" className="text-gray-500 hover:text-gray-300 transition-colors">History</Link>
         <span className="ml-auto text-xs text-gray-600">Progress saved automatically</span>
       </div>
+
+      {/* Toast: exercise permanently blocked after 3 skips */}
+      {blockedToast && (
+        <div className="mb-3 rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm text-orange-300">
+          🚫 {blockedToast}
+        </div>
+      )}
 
       <div className="mb-6">
         <h1 className="text-xl font-bold">{planDay.day_name}</h1>
