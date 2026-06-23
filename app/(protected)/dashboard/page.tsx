@@ -8,6 +8,7 @@ import StreakCounter from "@/components/dashboard/StreakCounter";
 import PlanSuggestionBanner from "@/components/dashboard/PlanSuggestionBanner";
 import SignOutButton from "@/components/dashboard/SignOutButton";
 import RestartWeekButton from "@/components/dashboard/RestartWeekButton";
+import WeeklyGoalBanner from "@/components/dashboard/WeeklyGoalBanner";
 
 export default async function DashboardPage() {
   const supabase = createServerClient();
@@ -66,17 +67,21 @@ export default async function DashboardPage() {
     : [];
   const weeklyTarget = planDays.length > 0 ? Math.min(planDays.length, 7) : 5;
 
-  // Determine today's planned workout day using a simple rotation (split users only).
-  // Exclude rest days and bonus sessions — they don't advance the split.
-  // If the week was restarted, only count sessions since week_start_at so the
-  // rotation goes back to day 1.
-  const completedSessions = sessions.filter(
+  // Determine today's planned workout day using last-session-based rotation.
+  // Find the most recent completed session that matches a plan day, then
+  // advance to the next one in the plan. This is independent of week_start_at
+  // so restarting the week never resets the split position — only the ring
+  // counter resets. Rest days and bonus sessions don't advance the split.
+  const lastPlanSession = sessions.find(
     (s) => s.completed_at &&
     (s as { session_type?: string }).session_type !== "rest" &&
     (s as { session_type?: string }).session_type !== "bonus" &&
-    (!weekStartAt || s.started_at >= weekStartAt)
+    planDays.some((d) => d.day_name === s.plan_day)
   );
-  const todayIndex = planDays.length > 0 ? completedSessions.length % planDays.length : 0;
+  const lastIndex = lastPlanSession
+    ? planDays.findIndex((d) => d.day_name === lastPlanSession.plan_day)
+    : -1;
+  const todayIndex = lastIndex >= 0 ? (lastIndex + 1) % planDays.length : 0;
   const todayPlan = planDays[todayIndex] ?? null;
 
   const lastSession = sessions[0];
@@ -134,6 +139,9 @@ export default async function DashboardPage() {
           <RestartWeekButton />
         </div>
       </Card>
+
+      {/* Prompt when weekly goal is hit — ask to start new week or keep going */}
+      <WeeklyGoalBanner completed={completedThisWeek} target={weeklyTarget} />
 
       {/* Today's workout CTA — split vs flexible */}
       {isCardioOnly ? (
