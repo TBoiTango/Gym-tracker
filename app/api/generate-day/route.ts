@@ -198,7 +198,7 @@ Return exactly this JSON shape (a single day object):
     // ── FIX 1: Hard muscle-group validation + replacement ─────────────────────
     // Reject any exercise that doesn't match the day's allowed muscle groups
     // (core allowed when the user opted in; cardio always allowed as a finisher).
-    const allowed = allowedMusclesForDay(day_name);
+    const allowed = allowedMusclesForDay(day_name, muscle_focus);
     if (allowed.length > 0 && dayData.exercises?.length) {
       const isAllowed = (exName: string): boolean => {
         const m = inferExerciseMuscle(exName);

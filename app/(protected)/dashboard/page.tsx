@@ -103,7 +103,8 @@ export default async function DashboardPage() {
   const inProgressSession = sessions.find(
     (s) => !s.completed_at &&
     s.started_at >= oneDayAgo &&
-    (s as { session_type?: string }).session_type !== "rest"
+    (s as { session_type?: string }).session_type !== "rest" &&
+    (s as { session_type?: string }).session_type !== "cancelled"
   );
 
   return (
@@ -241,7 +242,9 @@ export default async function DashboardPage() {
             {new Date(lastSession.started_at).toLocaleDateString("en-GB", {
               weekday: "long", day: "numeric", month: "short",
             })}
-            {lastSession.completed_at ? " · Completed" : " · Incomplete"}
+            {(lastSession as { session_type?: string }).session_type === "cancelled"
+              ? " · Cancelled"
+              : lastSession.completed_at ? " · Completed" : " · Incomplete"}
           </p>
         </Card>
       )}

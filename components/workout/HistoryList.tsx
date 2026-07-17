@@ -80,8 +80,8 @@ export default function HistoryList({ sessions: initial }: { sessions: Session[]
                 })}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-xs font-semibold ${s.completed_at ? "text-green-400" : "text-gray-500"}`}>
-                  {s.completed_at ? "Completed" : "Incomplete"}
+                <span className={`text-xs font-semibold ${s.session_type === "cancelled" ? "text-red-400/80" : s.completed_at ? "text-green-400" : "text-gray-500"}`}>
+                  {s.session_type === "cancelled" ? "Cancelled" : s.completed_at ? "Completed" : "Incomplete"}
                 </span>
                 {s.session_type === "cardio" && (
                   <span className="text-xs bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-semibold">Cardio</span>

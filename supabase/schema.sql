@@ -108,6 +108,17 @@ create policy "Users manage their own sessions"
 -- Add exercises_data if upgrading from v1
 alter table workout_sessions add column if not exists exercises_data jsonb;
 
+-- Session metadata columns (upgrades from earlier versions)
+alter table workout_sessions add column if not exists muscle_focus text;
+alter table workout_sessions add column if not exists session_type text;
+alter table workout_sessions add column if not exists free_format text;
+
+-- Cancellation tracking — user X'd out of the workout with an optional reason.
+-- Cancelled sessions never count as completed and are excluded from
+-- "in progress" resume prompts.
+alter table workout_sessions add column if not exists cancelled_at timestamptz;
+alter table workout_sessions add column if not exists cancel_reason text;
+
 -- ── 6. exercise_logs ─────────────────────────────────────────────────────────
 -- One row per exercise performed in a session.
 -- reps_per_set and weight_per_set are parallel arrays indexed by set number.
