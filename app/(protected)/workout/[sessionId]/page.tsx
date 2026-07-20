@@ -15,11 +15,16 @@ export default async function ActiveSessionPage({ params }: Props) {
 
   const { data: workoutSession } = await supabase
     .from("workout_sessions")
-    .select("id, plan_day, muscle_focus, completed_at, user_id, exercises_data")
+    .select("id, plan_day, muscle_focus, completed_at, user_id, exercises_data, session_type")
     .eq("id", params.sessionId)
     .single();
 
   if (!workoutSession || workoutSession.user_id !== session.user.id) {
+    redirect("/dashboard");
+  }
+
+  // Cancelled sessions can't be resumed — back to the dashboard
+  if ((workoutSession as { session_type?: string }).session_type === "cancelled") {
     redirect("/dashboard");
   }
 

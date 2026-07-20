@@ -8,7 +8,7 @@ import type { Exercise, PlanDay, ExerciseLog } from "@/types";
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import Button from "@/components/ui/Button";
 import { MUSCLE_LABELS, exercisesForEquipment, type LibraryMuscle, type LibraryExercise } from "@/lib/exercise-library";
-import { isCardioExercise } from "@/lib/exercise-classifier";
+import { isCardioExercise, dayCategory } from "@/lib/exercise-classifier";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -183,44 +183,51 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     }
   };
 
+  // Day category — day_name is checked before muscle_focus, and "upper" wins
+  // over chest/back mentions, so an Upper day whose focus reads "Chest, Back,
+  // Shoulders & Arms" is never misread as a chest day.
+  const sessionCategory = dayCategory(planDay.day_name, planDay.muscle_focus || "");
+
   // Quick Add groups — `muscle` is a CANONICAL category that the swap-exercise
   // API and its validation understand (chest, back, shoulders, biceps, triceps,
   // legs, abs and core). `subFocus` is an optional granular bias for the prompt.
   const quickAddGroups: { label: string; muscle: string; subFocus?: string }[] = (() => {
-    const focus = (planDay.muscle_focus || planDay.day_name).toLowerCase();
-    if (focus.includes("push") || focus.includes("chest"))
-      return [
-        { label: "Chest", muscle: "chest" },
-        { label: "Triceps", muscle: "triceps" },
-        { label: "Shoulders", muscle: "shoulders" },
-      ];
-    if (focus.includes("pull") || focus.includes("back"))
-      return [
-        { label: "Back", muscle: "back" },
-        { label: "Biceps", muscle: "biceps" },
-        { label: "Rear Delts", muscle: "shoulders", subFocus: "rear deltoids" },
-      ];
-    if (focus.includes("leg") || focus.includes("lower"))
-      return [
-        { label: "Quads", muscle: "legs", subFocus: "quadriceps" },
-        { label: "Hamstrings", muscle: "legs", subFocus: "hamstrings" },
-        { label: "Glutes", muscle: "legs", subFocus: "glutes" },
-        { label: "Calves", muscle: "legs", subFocus: "calves" },
-      ];
-    if (focus.includes("upper"))
-      return [
-        { label: "Chest", muscle: "chest" },
-        { label: "Back", muscle: "back" },
-        { label: "Shoulders", muscle: "shoulders" },
-        { label: "Biceps", muscle: "biceps" },
-        { label: "Triceps", muscle: "triceps" },
-      ];
-    return [
-      { label: "Core", muscle: "abs and core" },
-      { label: "Chest", muscle: "chest" },
-      { label: "Back", muscle: "back" },
-      { label: "Legs", muscle: "legs" },
-    ];
+    switch (sessionCategory) {
+      case "push":
+        return [
+          { label: "Chest", muscle: "chest" },
+          { label: "Triceps", muscle: "triceps" },
+          { label: "Shoulders", muscle: "shoulders" },
+        ];
+      case "pull":
+        return [
+          { label: "Back", muscle: "back" },
+          { label: "Biceps", muscle: "biceps" },
+          { label: "Rear Delts", muscle: "shoulders", subFocus: "rear deltoids" },
+        ];
+      case "legs":
+        return [
+          { label: "Quads", muscle: "legs", subFocus: "quadriceps" },
+          { label: "Hamstrings", muscle: "legs", subFocus: "hamstrings" },
+          { label: "Glutes", muscle: "legs", subFocus: "glutes" },
+          { label: "Calves", muscle: "legs", subFocus: "calves" },
+        ];
+      case "upper":
+        return [
+          { label: "Chest", muscle: "chest" },
+          { label: "Back", muscle: "back" },
+          { label: "Shoulders", muscle: "shoulders" },
+          { label: "Biceps", muscle: "biceps" },
+          { label: "Triceps", muscle: "triceps" },
+        ];
+      default:
+        return [
+          { label: "Core", muscle: "abs and core" },
+          { label: "Chest", muscle: "chest" },
+          { label: "Back", muscle: "back" },
+          { label: "Legs", muscle: "legs" },
+        ];
+    }
   })();
 
   const quickAdd = async (muscle: string, label: string, subFocus?: string) => {
@@ -320,6 +327,35 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     insertExercise(ex);
     setShowOtherModal(false);
     setOtherMuscle(null);
+  };
+
+  // Cancel workout state — X out of the whole session with a reason.
+  // The session is marked cancelled (never counts as completed, never shows
+  // as "in progress" again) and the user is returned to the dashboard.
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const CANCEL_REASONS = ["Doing something else", "Not feeling it today", "Out of time", "Just because"];
+
+  const cancelWorkout = async (reason: string) => {
+    if (cancelling) return;
+    setCancelling(true);
+    const { error } = await supabase
+      .from("workout_sessions")
+      .update({
+        session_type: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancel_reason: reason,
+      })
+      .eq("id", sessionId);
+    if (error) {
+      // cancelled_at / cancel_reason columns may not exist yet (schema.sql not
+      // re-run) — still mark the session cancelled so it doesn't linger.
+      await supabase
+        .from("workout_sessions")
+        .update({ session_type: "cancelled" })
+        .eq("id", sessionId);
+    }
+    router.push("/dashboard");
   };
 
   // Skip exercise state
@@ -442,14 +478,16 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     return exercises.length; // all done, append at end
   };
 
-  // Canonical muscle groups this day type covers — used to warn on mismatched manual adds
+  // Canonical muscle groups this day type covers — used to warn on mismatched manual adds.
+  // On upper days ALL upper-body groups are allowed, so nothing upper-related warns.
   const dayMuscles = (() => {
-    const focus = (planDay.muscle_focus || planDay.day_name).toLowerCase();
-    if (focus.includes("push") || focus.includes("chest")) return ["chest", "shoulders", "triceps"];
-    if (focus.includes("pull") || focus.includes("back")) return ["back", "biceps", "shoulders"];
-    if (focus.includes("leg") || focus.includes("lower")) return ["legs"];
-    if (focus.includes("upper")) return ["chest", "back", "shoulders", "biceps", "triceps"];
-    return []; // unknown / full body — no warning
+    switch (sessionCategory) {
+      case "push":  return ["chest", "shoulders", "triceps"];
+      case "pull":  return ["back", "biceps", "shoulders"];
+      case "legs":  return ["legs"];
+      case "upper": return ["chest", "back", "shoulders", "biceps", "triceps"];
+      default:      return []; // unknown / full body — no warning
+    }
   })();
 
   // Live warning if the typed exercise targets a muscle group outside this day
@@ -500,13 +538,59 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
     router.push(`/workout/${sessionId}/summary`);
   };
 
+  // Cancel Workout modal — rendered from both the warmup screen and the main
+  // session view, so the user can X out at any point.
+  const cancelModal = showCancelModal ? (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setShowCancelModal(false)}>
+      <div
+        className="w-full max-w-lg rounded-t-2xl bg-gray-900 border border-gray-700 p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Cancel Workout</h2>
+            <p className="text-sm text-gray-400 mt-0.5">{planDay.day_name} — this session won&apos;t count toward your week</p>
+          </div>
+          <button onClick={() => setShowCancelModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+        </div>
+        <p className="text-sm text-gray-400">No problem — what&apos;s the reason?</p>
+        <div className="space-y-2">
+          {CANCEL_REASONS.map((reason) => (
+            <button
+              key={reason}
+              onClick={() => cancelWorkout(reason)}
+              disabled={cancelling}
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-left text-sm text-gray-300 hover:border-orange-500 hover:text-white disabled:opacity-50 transition-colors"
+            >
+              {cancelling ? "Cancelling…" : reason}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowCancelModal(false)}
+          className="w-full text-sm text-gray-500 hover:text-gray-300 py-1 transition-colors"
+        >
+          Never mind, keep going
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   // Warmup screen
   if (showWarmup) {
     return (
       <main className="mx-auto max-w-lg px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold">Warmup 🔥</h1>
-          <p className="text-sm text-gray-400">{planDay.day_name} · ~5 minutes</p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Warmup 🔥</h1>
+            <p className="text-sm text-gray-400">{planDay.day_name} · ~5 minutes</p>
+          </div>
+          <button
+            onClick={() => setShowCancelModal(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors"
+            title="Cancel workout"
+            aria-label="Cancel workout"
+          >✕</button>
         </div>
 
         {warmupLoading && (
@@ -549,6 +633,8 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
             Skip warmup
           </button>
         </div>
+
+        {cancelModal}
       </main>
     );
   }
@@ -560,6 +646,12 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
         <Link href="/dashboard" className="text-gray-500 hover:text-gray-300 transition-colors">← Dashboard</Link>
         <Link href="/workout/history" className="text-gray-500 hover:text-gray-300 transition-colors">History</Link>
         <span className="ml-auto text-xs text-gray-600">Progress saved automatically</span>
+        <button
+          onClick={() => setShowCancelModal(true)}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800 text-gray-500 hover:bg-red-900/60 hover:text-red-400 transition-colors text-xs"
+          title="Cancel workout"
+          aria-label="Cancel workout"
+        >✕</button>
       </div>
 
       {/* Toast: exercise permanently blocked after 3 skips */}
@@ -631,6 +723,9 @@ export default function ActiveSession({ sessionId, planDay, existingLogs }: Prop
       <Button onClick={finishWorkout} loading={finishing} className="w-full text-lg py-4">
         Finish Workout ✅
       </Button>
+
+      {/* Cancel Workout Modal */}
+      {cancelModal}
 
       {/* Skip Exercise Modal */}
       {skipIndex !== null && (

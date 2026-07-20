@@ -138,17 +138,41 @@ export function inferExerciseMuscle(name: string): MuscleGroup {
   return "unknown";
 }
 
+// Canonical day categories. "upper" allows ALL upper-body muscle groups —
+// an Upper day must never be narrowed down to a chest day or back day just
+// because its muscle_focus string mentions those muscles.
+export type DayCategory = "push" | "pull" | "legs" | "upper" | "other";
+
+// Classify a workout day. Checks day_name first (authoritative), then falls
+// back to muscle_focus. IMPORTANT ordering: "upper" — and any focus that spans
+// both chest AND back — is detected BEFORE the single chest/back checks, so an
+// Upper day with focus "Chest, Back, Shoulders & Arms" is treated as upper,
+// not as a chest day.
+export function dayCategory(dayName: string, muscleFocus = ""): DayCategory {
+  for (const raw of [dayName, muscleFocus]) {
+    const n = (raw || "").toLowerCase();
+    if (!n) continue;
+    if (n.includes("upper")) return "upper";
+    if (n.includes("chest") && n.includes("back")) return "upper";
+    if (n.includes("push")) return "push";
+    if (n.includes("pull")) return "pull";
+    if (n.includes("leg") || n.includes("lower")) return "legs";
+    if (n.includes("chest")) return "push";
+    if (n.includes("back")) return "pull";
+  }
+  return "other"; // unknown / full body — no restriction
+}
+
 // Allowed muscle groups for a given day type. Empty array = allow anything
 // (unknown/full-body days). Core is handled separately (allowed when opted in).
-export function allowedMusclesForDay(dayName: string): MuscleGroup[] {
-  const n = (dayName || "").toLowerCase();
-  if (n.includes("push")) return ["chest", "shoulders", "triceps"];
-  if (n.includes("pull")) return ["back", "biceps", "shoulders"]; // shoulders allows rear delts
-  if (n.includes("leg") || n.includes("lower")) return ["legs"];
-  if (n.includes("upper")) return ["chest", "back", "shoulders", "biceps", "triceps"];
-  if (n.includes("chest")) return ["chest", "shoulders", "triceps"];
-  if (n.includes("back")) return ["back", "biceps", "shoulders"];
-  return []; // unknown / full body — no restriction
+export function allowedMusclesForDay(dayName: string, muscleFocus = ""): MuscleGroup[] {
+  switch (dayCategory(dayName, muscleFocus)) {
+    case "push":  return ["chest", "shoulders", "triceps"];
+    case "pull":  return ["back", "biceps", "shoulders"]; // shoulders allows rear delts
+    case "legs":  return ["legs"];
+    case "upper": return ["chest", "back", "shoulders", "biceps", "triceps"];
+    default:      return [];
+  }
 }
 
 /**
