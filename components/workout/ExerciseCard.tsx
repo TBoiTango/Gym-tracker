@@ -82,13 +82,14 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Find the most recent log for this exercise name (across all sessions)
+      // Find the most recent log for this exercise name (across all sessions).
+      // exercise_logs has no created_at column — order by logged_at instead.
       const { data: lastLog } = await supabase
         .from("exercise_logs")
         .select("reps_per_set, weight_per_set, sets_completed, session_id")
         .eq("exercise_name", exercise.name)
         .neq("session_id", sessionId) // not the current session
-        .order("created_at", { ascending: false })
+        .order("logged_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -171,8 +172,11 @@ function TreadmillIntervalCard({ exercise, sessionId, existingLog, onLogUpdated 
       if (error) setSaveError("Failed to save.");
       else if (data) onLogUpdated(data);
     } else {
+      // NOTE: `felt` is intentionally NOT written here — exercise_logs has no
+      // such column (it lives on workout_sessions.cardio_data for standalone
+      // cardio sessions). Including it made this insert fail silently.
       const { data, error } = await supabase.from("exercise_logs")
-        .insert({ session_id: sessionId, exercise_name: exercise.name, felt, ...payload })
+        .insert({ session_id: sessionId, exercise_name: exercise.name, ...payload })
         .select().single();
       if (error) setSaveError("Failed to save.");
       else if (data) onLogUpdated(data);
@@ -488,15 +492,26 @@ export default function ExerciseCard(props: Props) {
       }
 
       const sessionIds = recentSessions.map((s) => s.id);
+      // sessionIds is ordered newest-first. `.in(...)` does NOT preserve that
+      // order, so to get the genuine LAST time we must pick the log from the
+      // most recent session ourselves — the DB would otherwise hand back an
+      // arbitrary (often the oldest) row. We also skip rows with no logged
+      // weight so "Last time" never shows a session that was started but empty.
+      const pickMostRecent = <T extends { session_id: string; weight_per_set?: number[] }>(rows: T[] | null): T | null => {
+        if (!rows?.length) return null;
+        for (const sid of sessionIds) {
+          const match = rows.find((r) => r.session_id === sid && (r.weight_per_set?.length ?? 0) > 0);
+          if (match) return match;
+        }
+        return null;
+      };
 
       // Step 2: find the most recent log for this exact exercise name in those sessions
-      const { data: exactLog, error: logErr } = await supabase
+      const { data: exactLogs, error: logErr } = await supabase
         .from("exercise_logs")
         .select("weight_per_set, reps_per_set, sets_completed, session_id, exercise_name")
         .eq("exercise_name", exercise.name)
-        .in("session_id", sessionIds)
-        .limit(1)
-        .maybeSingle();
+        .in("session_id", sessionIds);
 
       if (logErr) {
         console.error(`[ExerciseCard] Log query error:`, logErr.message);
@@ -504,7 +519,7 @@ export default function ExerciseCard(props: Props) {
       }
 
       // Step 3: if no exact match, try fuzzy matching against all logged exercise names
-      let lastLog = exactLog;
+      let lastLog = pickMostRecent(exactLogs);
       let fuzzyMatchedName: string | null = null;
 
       if (!lastLog?.weight_per_set?.length) {
@@ -522,11 +537,8 @@ export default function ExerciseCard(props: Props) {
             const uniqueNames = Array.from(new Set(candidates.map((c) => c.exercise_name)));
             const bestName = findBestMatch(exercise.name, uniqueNames);
             if (bestName) {
-              // Pick the candidate from the most recent session (sessionIds is ordered newest-first)
-              const matches = candidates.filter((c) => c.exercise_name === bestName);
-              const orderedMatch = sessionIds
-                .map((sid) => matches.find((m) => m.session_id === sid))
-                .find(Boolean);
+              // Pick the best-name candidate from the most recent session that has data
+              const orderedMatch = pickMostRecent(candidates.filter((c) => c.exercise_name === bestName));
               if (orderedMatch) {
                 lastLog = orderedMatch;
                 fuzzyMatchedName = bestName;

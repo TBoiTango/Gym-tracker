@@ -27,6 +27,10 @@ create policy "Users can view and edit their own profile"
 -- Add new columns if upgrading from v1
 alter table profiles add column if not exists workout_duration int not null default 60;
 alter table profiles add column if not exists include_cardio boolean not null default false;
+-- workout_style: 'split' (default) | 'no_split' | 'cardio_only'
+alter table profiles add column if not exists workout_style text not null default 'split';
+-- week_start_at: set by "Restart week" so the weekly ring counts from here
+alter table profiles add column if not exists week_start_at timestamptz;
 
 -- ── 2. gyms ──────────────────────────────────────────────────────────────────
 create table if not exists gyms (
@@ -110,8 +114,11 @@ alter table workout_sessions add column if not exists exercises_data jsonb;
 
 -- Session metadata columns (upgrades from earlier versions)
 alter table workout_sessions add column if not exists muscle_focus text;
+-- session_type: null/'workout' | 'rest' | 'cardio' | 'free' | 'bonus' | 'cancelled'
 alter table workout_sessions add column if not exists session_type text;
 alter table workout_sessions add column if not exists free_format text;
+-- cardio_data: intervals/rounds/felt for standalone cardio sessions
+alter table workout_sessions add column if not exists cardio_data jsonb;
 
 -- Cancellation tracking — user X'd out of the workout with an optional reason.
 -- Cancelled sessions never count as completed and are excluded from
@@ -132,8 +139,12 @@ create table if not exists exercise_logs (
   reps_per_set    jsonb not null default '[]',
   weight_per_set  jsonb not null default '[]',
   notes           text,
+  user_added      boolean not null default false,
   logged_at       timestamptz not null default now()
 );
+
+-- user_added: true when the exercise was quick-added mid-session (upgrades)
+alter table exercise_logs add column if not exists user_added boolean not null default false;
 
 alter table exercise_logs enable row level security;
 
@@ -192,6 +203,33 @@ alter table user_exercise_preferences enable row level security;
 drop policy if exists "Users manage their own exercise preferences" on user_exercise_preferences;
 create policy "Users manage their own exercise preferences"
   on user_exercise_preferences for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ── 9. user_exercise_pool ────────────────────────────────────────────────────
+-- Per-day-type pool of exercises the user has quick-added. The generator pulls
+-- least-recently-used ones back in so added exercises rotate into future
+-- sessions. last_included_at is bumped when an exercise is used again.
+create table if not exists user_exercise_pool (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  day_type        text not null,
+  exercise_name   text not null,
+  sets            int not null default 3,
+  rep_range       text not null default '8-12',
+  rest_seconds    int not null default 60,
+  coaching_note   text not null default '',
+  times_added     int not null default 1,
+  last_included_at timestamptz,
+  created_at      timestamptz not null default now(),
+  unique (user_id, day_type, exercise_name)
+);
+
+alter table user_exercise_pool enable row level security;
+
+drop policy if exists "Users manage their own exercise pool" on user_exercise_pool;
+create policy "Users manage their own exercise pool"
+  on user_exercise_pool for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
